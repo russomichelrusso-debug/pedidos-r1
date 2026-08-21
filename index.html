@@ -689,6 +689,29 @@
   #tabLevantamento.hidden, #tabPrecos.hidden{display:none;}
 
   /* ---------- Levantamento ---------- */
+  .lev-savebar{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:12px 16px 0;
+  }
+  .lev-saveinfo{font-size:12.5px;color:var(--gray);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .lev-saveinfo.hasname{color:var(--ink);font-weight:600;}
+  .lev-savebtns{display:flex;gap:6px;flex-shrink:0;}
+  .lev-savebtns button{
+    display:flex;align-items:center;gap:5px;
+    background:var(--white);box-shadow:var(--shadow-1);border:none;border-radius:20px;
+    padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;
+  }
+  .lev-savebtns button svg{width:14px;height:14px;flex-shrink:0;}
+  .savedSurveyItem{
+    background:var(--fill);border-radius:12px;padding:12px 13px;margin-bottom:8px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;
+  }
+  .savedSurveyItem .ssName{font-weight:700;font-size:13.5px;color:var(--ink);}
+  .savedSurveyItem .ssMeta{font-size:11.5px;color:var(--gray);margin-top:2px;}
+  .savedSurveyItem .ssDel{
+    background:var(--white);border:none;border-radius:8px;width:30px;height:30px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray);font-size:15px;
+  }
   .lev-inputWrap{padding:12px 16px 4px;}
   .lev-searchresults{
     margin:0 16px 10px;
@@ -922,6 +945,19 @@
   </div>
 
   <div id="tabLevantamento" class="hidden">
+    <div class="lev-savebar">
+      <span class="lev-saveinfo" id="levSaveInfo">Levantamento não salvo</span>
+      <div class="lev-savebtns">
+        <button type="button" id="levSaveBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+          Salvar
+        </button>
+        <button type="button" id="levOpenBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          Abrir
+        </button>
+      </div>
+    </div>
     <div class="lev-inputWrap">
       <div class="searchBox searchBox--actions2">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 3v18M11 3v18M16 3v6M16 15v6"/></svg>
@@ -1007,6 +1043,31 @@
       <button id="priceEditConfirm">Aplicar</button>
     </div>
     <button id="priceEditReset" class="priceEditResetLink">Restaurar preço de tabela</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="levSaveOverlay"></div>
+<div class="minimodal hidden" id="levSaveModal">
+  <div class="minimodal-card">
+    <h3>Salvar levantamento</h3>
+    <p>Dá um nome pra achar esse levantamento depois (ex: nome do cliente).</p>
+    <label for="levSaveName">Nome</label>
+    <input type="text" id="levSaveName" placeholder="Ex: João Silva Materiais" autocomplete="off">
+    <div class="minimodal-btnrow">
+      <button id="levSaveCancel">Cancelar</button>
+      <button id="levSaveConfirm">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="levOpenOverlay"></div>
+<div class="minimodal hidden" id="levOpenModal">
+  <div class="minimodal-card" style="max-height:80vh;overflow-y:auto;">
+    <h3>Levantamentos salvos</h3>
+    <div id="savedSurveysList"></div>
+    <div class="minimodal-btnrow" style="margin-top:6px;">
+      <button id="levOpenCancel">Fechar</button>
+    </div>
   </div>
 </div>
 
@@ -1194,6 +1255,8 @@ const state = {
   seller: '',
   cart: [], // {cod, qty}
   survey: [], // {cod, qty, ped} - levantamento de estoque no cliente
+  levLoadedId: null, // id do levantamento salvo atualmente aberto (null = ainda não foi salvo com nome)
+  levLoadedName: null,
   priceOverrides: {}, // {cod: preçoLíquidoEditado} - preço base manual (antes de impostos), por sessão
   qtyDiscounts: {}, // {cod: percentual} - desconto extra por quantidade, por produto
   promoRules: [] // regras de campanha sazonal, por categoria
@@ -1833,9 +1896,158 @@ function clearLevSurvey(){
   if(state.survey.length===0) return;
   if(!confirm('Limpar todo o levantamento deste cliente?')) return;
   state.survey = [];
+  state.levLoadedId = null;
+  state.levLoadedName = null;
   saveLevSurvey();
   renderLevList();
+  refreshLevSaveInfo();
 }
+
+// ---------------- Levantamentos salvos (múltiplos, com nome e data) ----------------
+const LEV_SAVED_LS_KEY = 'cortagLevantamentosSalvos_v1';
+
+function loadSavedSurveysList(){
+  try{
+    const raw = localStorage.getItem(LEV_SAVED_LS_KEY);
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)) return arr;
+    }
+  }catch(e){ console.warn('Não foi possível carregar levantamentos salvos:', e); }
+  return [];
+}
+function saveSavedSurveysList(list){
+  try{ localStorage.setItem(LEV_SAVED_LS_KEY, JSON.stringify(list)); }catch(e){ /* ok se indisponível */ }
+}
+
+function refreshLevSaveInfo(){
+  const el = document.getElementById('levSaveInfo');
+  if(state.levLoadedName){
+    el.textContent = state.levLoadedName;
+    el.classList.add('hasname');
+  } else {
+    el.textContent = 'Levantamento não salvo';
+    el.classList.remove('hasname');
+  }
+}
+
+function openLevSaveModal(){
+  if(state.survey.length === 0){ showToast('Adicione algum item ao levantamento antes de salvar'); return; }
+  const input = document.getElementById('levSaveName');
+  input.value = state.levLoadedName || '';
+  document.getElementById('levSaveOverlay').classList.remove('hidden');
+  document.getElementById('levSaveModal').classList.remove('hidden');
+  setTimeout(()=>{ input.focus(); input.select(); }, 50);
+}
+function closeLevSaveModal(){
+  document.getElementById('levSaveOverlay').classList.add('hidden');
+  document.getElementById('levSaveModal').classList.add('hidden');
+}
+function confirmLevSave(){
+  const name = document.getElementById('levSaveName').value.trim();
+  if(!name){ showToast('Digite um nome pra salvar'); return; }
+  const list = loadSavedSurveysList();
+  // se já existe um salvo com o mesmo id carregado, ou com o mesmo nome, atualiza; senão, cria novo
+  let idx = -1;
+  if(state.levLoadedId) idx = list.findIndex(s=>s.id===state.levLoadedId);
+  if(idx < 0) idx = list.findIndex(s=>s.name.toLowerCase()===name.toLowerCase());
+
+  const entry = {
+    id: (idx>=0 ? list[idx].id : 'lev'+Date.now()),
+    name,
+    savedAt: Date.now(),
+    items: JSON.parse(JSON.stringify(state.survey)),
+  };
+  if(idx>=0) list[idx] = entry; else list.push(entry);
+  saveSavedSurveysList(list);
+  state.levLoadedId = entry.id;
+  state.levLoadedName = entry.name;
+  refreshLevSaveInfo();
+  closeLevSaveModal();
+  showToast('Levantamento salvo: ' + name);
+}
+
+function openLevOpenModal(){
+  renderSavedSurveysList();
+  document.getElementById('levOpenOverlay').classList.remove('hidden');
+  document.getElementById('levOpenModal').classList.remove('hidden');
+}
+function closeLevOpenModal(){
+  document.getElementById('levOpenOverlay').classList.add('hidden');
+  document.getElementById('levOpenModal').classList.add('hidden');
+}
+function renderSavedSurveysList(){
+  const wrap = document.getElementById('savedSurveysList');
+  const list = loadSavedSurveysList().sort((a,b)=>b.savedAt-a.savedAt);
+  if(list.length === 0){
+    wrap.innerHTML = '<div class="promoEmpty">Nenhum levantamento salvo ainda.</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(s=>{
+    const totalItens = s.items.length;
+    const totalUn = s.items.reduce((a,i)=>a+(i.qty||0),0);
+    const data = new Date(s.savedAt).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div class="savedSurveyItem" data-open-survey="${s.id}">
+      <div>
+        <div class="ssName">${escapeHtml(s.name)}</div>
+        <div class="ssMeta">${data} · ${totalItens} produto${totalItens===1?'':'s'} · ${totalUn} un.</div>
+      </div>
+      <button type="button" class="ssDel" data-del-survey="${s.id}" aria-label="Excluir">🗑</button>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('[data-open-survey]').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-del-survey]')) return;
+      doOpenSavedSurvey(el.dataset.openSurvey);
+    });
+  });
+  wrap.querySelectorAll('[data-del-survey]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(!confirm('Excluir esse levantamento salvo? Essa ação não pode ser desfeita.')) return;
+      const list = loadSavedSurveysList().filter(s=>s.id!==btn.dataset.delSurvey);
+      saveSavedSurveysList(list);
+      if(state.levLoadedId === btn.dataset.delSurvey){ state.levLoadedId = null; state.levLoadedName = null; refreshLevSaveInfo(); }
+      renderSavedSurveysList();
+    });
+  });
+}
+function doOpenSavedSurvey(id){
+  const list = loadSavedSurveysList();
+  const entry = list.find(s=>s.id===id);
+  if(!entry) return;
+  const proceed = () => {
+    state.survey = entry.items
+      .filter(it => it && it.cod!==undefined && DB.productIndex[it.cod])
+      .map(it => ({cod: it.cod, qty: it.qty||0, ped: it.ped||0}));
+    state.levLoadedId = entry.id;
+    state.levLoadedName = entry.name;
+    saveLevSurvey();
+    renderLevList();
+    refreshLevSaveInfo();
+    closeLevOpenModal();
+    showToast('Levantamento aberto: ' + entry.name);
+  };
+  if(state.survey.length > 0 && state.levLoadedId !== id){
+    if(!confirm('Isso vai substituir o levantamento atual (não salvo será perdido). Continuar?')) return;
+  }
+  proceed();
+}
+
+function initLevSaveOpen(){
+  document.getElementById('levSaveBtn').addEventListener('click', openLevSaveModal);
+  document.getElementById('levSaveCancel').addEventListener('click', closeLevSaveModal);
+  document.getElementById('levSaveOverlay').addEventListener('click', closeLevSaveModal);
+  document.getElementById('levSaveConfirm').addEventListener('click', confirmLevSave);
+  document.getElementById('levSaveName').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); confirmLevSave(); }
+  });
+  document.getElementById('levOpenBtn').addEventListener('click', openLevOpenModal);
+  document.getElementById('levOpenCancel').addEventListener('click', closeLevOpenModal);
+  document.getElementById('levOpenOverlay').addEventListener('click', closeLevOpenModal);
+  refreshLevSaveInfo();
+}
+
 function addLevPedidoToCart(cod){
   const it = state.survey.find(i=>i.cod===cod);
   if(!it || !it.ped){ showToast('Defina a quantidade do pedido primeiro'); return; }
@@ -3227,6 +3439,7 @@ async function init(){
   initPromoRulesAdmin();
   initTabs();
   initLevantamento();
+  initLevSaveOpen();
   initCsvNamePrompt();
   initPriceEdit();
   initVoiceSearch();
