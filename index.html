@@ -2214,19 +2214,24 @@ function hideScannerStatus(){
   document.getElementById('scannerStatus').classList.add('hidden');
 }
 
-// Mensagem que muda sozinha enquanto procura, só pra deixar claro que a leitura
-// está mesmo tentando (e não travada) - e dar uma dica se estiver demorando.
+// Mensagem que muda sozinha enquanto procura. Mostra o número real de quadros
+// que o leitor já tentou decodificar - isso diz com certeza se o loop está
+// rodando (contador sobe) ou travado sem tentar nada (contador fica em zero).
 function startScannerTicker(){
   scannerStartTime = Date.now();
+  scannerAttemptCount = 0;
   showScannerStatus('Procurando código…');
   scannerTickerId = setInterval(()=>{
     const s = Math.floor((Date.now() - scannerStartTime) / 1000);
     const el = document.getElementById('scannerStatus');
     if(el.classList.contains('error')) return; // erro real na tela, não sobrescreve
-    if(s < 5) showScannerStatus('Procurando código…');
-    else if(s < 12) showScannerStatus('Ainda procurando… aproxime bem o código, preenchendo a moldura.');
-    else showScannerStatus('Sem sucesso ainda — tente mais luz, mais perto, e segure firme por um instante.');
-  }, 1500);
+    const n = scannerAttemptCount;
+    if(scannerAttemptCount === 0 && s >= 3){
+      showScannerStatus(`O leitor não conseguiu nem começar a tentar (0 quadros lidos em ${s}s) — pode ser bloqueio da própria câmera. Feche e abra de novo.`, true);
+    } else if(s < 5) showScannerStatus(`Procurando código… (${n} quadros lidos)`);
+    else if(s < 12) showScannerStatus(`Ainda procurando (${n} quadros lidos)… aproxime bem o código, preenchendo a moldura.`);
+    else showScannerStatus(`Sem sucesso ainda (${n} quadros lidos) — tente mais luz, mais perto, e segure firme.`);
+  }, 1000);
 }
 function stopScannerTicker(){
   if(scannerTickerId){ clearInterval(scannerTickerId); scannerTickerId = null; }
@@ -2235,6 +2240,7 @@ function stopScannerTicker(){
 let scannerCameras = [];
 let scannerCameraIndex = 0;
 let scannerCodeReader = null;
+let scannerAttemptCount = 0;
 
 async function startScanning(deviceId){
   stopScannerTicker();
@@ -2250,18 +2256,15 @@ async function startScanning(deviceId){
   }
   await new Promise(r=>setTimeout(r, 350)); // dá tempo do hardware da câmera liberar
 
-  const videoConstraints = {
-    width: { ideal: 1920 },
-    height: { ideal: 1080 },
-    // foco contínuo ajuda bastante em distância curta (código de barras);
-    // navegador que não suportar essa opção simplesmente ignora, sem erro.
-    advanced: [{ focusMode: 'continuous' }]
-  };
+  // resolução mais modesta (mais compatível) - pedir 1920x1080 em aparelhos
+  // médios às vezes força um modo de câmera pior pra foco de perto
+  const videoConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
   if(deviceId) videoConstraints.deviceId = { exact: deviceId };
   else videoConstraints.facingMode = { ideal: 'environment' };
 
   startScannerTicker();
   scannerControls = await scannerCodeReader.decodeFromConstraints({ video: videoConstraints }, videoEl, (result, err, controls) => {
+    scannerAttemptCount++;
     if(result){
       const text = result.getText();
       controls.stop();
@@ -2299,9 +2302,9 @@ async function openBarcodeScanner(){
     return;
   }
   try{
-    const hints = new Map();
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    scannerCodeReader = new ZXing.BrowserMultiFormatReader(hints);
+    // sem hints por enquanto - configuração mais simples e mais próxima do
+    // exemplo oficial, pra isolar se o problema está nos hints ou em outra coisa
+    scannerCodeReader = new ZXing.BrowserMultiFormatReader();
     await startScanning(null);
   }catch(e){
     console.error(e);
