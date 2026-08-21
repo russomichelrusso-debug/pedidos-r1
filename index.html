@@ -159,24 +159,20 @@
     position:absolute;left:12px;top:50%;transform:translateY(-50%);
     width:17px;height:17px;color:var(--gray);
   }
-  .micBtn{
-    position:absolute;right:6px;top:50%;transform:translateY(-50%);
-    background:none;border:none;color:var(--gray);cursor:pointer;
-    padding:7px;display:flex;align-items:center;
+  .searchBox--actions2 input{padding-right:76px;}
+  .searchBoxActions{
+    position:absolute;right:4px;top:50%;transform:translateY(-50%);
+    display:flex;align-items:center;gap:0;
   }
-  .micBtn svg{width:19px;height:19px;}
-  .micBtn:active{color:var(--red);}
+  .micBtn, .camBtn{
+    background:none;border:none;color:var(--gray);cursor:pointer;
+    padding:7px;display:flex;align-items:center;flex-shrink:0;
+  }
+  .micBtn svg, .camBtn svg{width:19px;height:19px;}
+  .micBtn:active, .camBtn:active{color:var(--red);}
   .micBtn.listening{color:var(--red);animation:micPulse 1s ease-in-out infinite;}
   .micBtn.unsupported{display:none;}
   @keyframes micPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
-  .searchBox--wide input{padding-right:78px;}
-  .camBtn{
-    position:absolute;right:38px;top:50%;transform:translateY(-50%);
-    background:none;border:none;color:var(--gray);cursor:pointer;
-    padding:7px;display:flex;align-items:center;
-  }
-  .camBtn svg{width:19px;height:19px;}
-  .camBtn:active{color:var(--red);}
   .hint{
     padding:8px 4px 2px;
     font-size:12.5px;
@@ -811,12 +807,17 @@
   </div>
 
   <div class="searchWrap">
-    <div class="searchBox">
+    <div class="searchBox searchBox--actions2">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input type="text" id="searchInput" placeholder="Código de barras, código ou nome do produto" autocomplete="off">
-      <button type="button" class="micBtn" id="micBtnSearch" aria-label="Buscar por voz">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      </button>
+      <div class="searchBoxActions">
+        <button type="button" class="camBtn" id="scanBtnSearch" aria-label="Ler código de barras pela câmera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 6v12M10 6v12M15 6v12M18 6v12"/></svg>
+        </button>
+        <button type="button" class="micBtn" id="micBtnSearch" aria-label="Buscar por voz">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+      </div>
     </div>
     <div class="hint" id="searchHint">Digite ao menos 2 caracteres para buscar.</div>
   </div>
@@ -826,15 +827,17 @@
 
   <div id="tabLevantamento" class="hidden">
     <div class="lev-inputWrap">
-      <div class="searchBox searchBox--wide">
+      <div class="searchBox searchBox--actions2">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 3v18M11 3v18M16 3v6M16 15v6"/></svg>
         <input type="text" id="levInput" placeholder="Escaneie o código, ou digite código/nome" autocomplete="off">
-        <button type="button" class="camBtn" id="scanBtnLev" aria-label="Ler código de barras pela câmera">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 6v12M10 6v12M15 6v12M18 6v12"/></svg>
-        </button>
-        <button type="button" class="micBtn" id="micBtnLev" aria-label="Buscar por voz">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        </button>
+        <div class="searchBoxActions">
+          <button type="button" class="camBtn" id="scanBtnLev" aria-label="Ler código de barras pela câmera">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 6v12M10 6v12M15 6v12M18 6v12"/></svg>
+          </button>
+          <button type="button" class="micBtn" id="micBtnLev" aria-label="Buscar por voz">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+        </div>
       </div>
       <div class="hint">Cada leitura de código soma 1 unidade. Por nome, toque no produto certo na lista. O estoque também pode ser digitado direto.</div>
     </div>
@@ -2200,6 +2203,21 @@ let scannerCameras = [];
 let scannerCameraIndex = 0;
 let scannerCodeReader = null;
 let scannerAttemptCount = 0;
+let scannerTargetInput = 'levInput';
+
+// Decide o que fazer com o código lido: no Levantamento, soma ao estoque;
+// na busca de Preços (ou qualquer outro campo), só preenche e dispara a busca.
+function onScanSuccess(text){
+  if(scannerTargetInput === 'levInput'){
+    processLevScan(text);
+    return;
+  }
+  const input = document.getElementById(scannerTargetInput);
+  if(!input) return;
+  input.value = text;
+  input.dispatchEvent(new Event('input', {bubbles:true}));
+  showToast(`Buscando: "${text}"`);
+}
 
 function loadZXingScript(){
   if(window.ZXing) return Promise.resolve();
@@ -2286,7 +2304,7 @@ async function startNativeScanning(deviceId){
       if(barcodes && barcodes.length){
         const text = barcodes[0].rawValue;
         closeBarcodeScanner();
-        processLevScan(text);
+        onScanSuccess(text);
       }
     }catch(e){
       console.warn('Erro no BarcodeDetector:', e);
@@ -2320,7 +2338,7 @@ async function startZXingScanning(deviceId){
       controls.stop();
       scannerControls = null;
       closeBarcodeScanner();
-      processLevScan(text);
+      onScanSuccess(text);
       return;
     }
     if(err && err.name && err.name !== 'NotFoundException' && err.name !== 'ChecksumException' && err.name !== 'FormatException'){
@@ -2341,7 +2359,8 @@ function startScanning(deviceId){
   return scannerEngine === 'native' ? startNativeScanning(deviceId) : startZXingScanning(deviceId);
 }
 
-async function openBarcodeScanner(){
+async function openBarcodeScanner(targetInputId){
+  scannerTargetInput = targetInputId || 'levInput';
   document.getElementById('scannerModal').classList.remove('hidden');
   document.getElementById('scannerSwitchBtn').classList.add('hidden');
   scannerCameras = [];
@@ -2410,7 +2429,8 @@ function closeBarcodeScanner(){
 }
 
 function initBarcodeScanner(){
-  document.getElementById('scanBtnLev').addEventListener('click', openBarcodeScanner);
+  document.getElementById('scanBtnLev').addEventListener('click', ()=>openBarcodeScanner('levInput'));
+  document.getElementById('scanBtnSearch').addEventListener('click', ()=>openBarcodeScanner('searchInput'));
   document.getElementById('scannerClose').addEventListener('click', closeBarcodeScanner);
   document.getElementById('scannerSwitchBtn').addEventListener('click', switchScannerCamera);
 }
