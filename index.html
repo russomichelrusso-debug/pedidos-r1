@@ -155,19 +155,20 @@
   }
   .searchBox input::placeholder{color:var(--gray);}
   .searchBox input:focus{outline:none;background:var(--white);box-shadow:0 0 0 3px rgba(204,9,53,.18), var(--shadow-1);}
-  .searchBox svg{
+  .searchBox > svg{
     position:absolute;left:12px;top:50%;transform:translateY(-50%);
     width:17px;height:17px;color:var(--gray);
   }
-  .searchBox--actions2 input{padding-right:76px;}
+  .searchBox--actions2 input{padding-right:92px;}
   .searchBoxActions{
-    position:absolute;right:4px;top:50%;transform:translateY(-50%);
-    display:flex;align-items:center;gap:0;
+    position:absolute;right:6px;top:50%;transform:translateY(-50%);
+    display:flex;align-items:center;gap:5px;
   }
   .micBtn, .camBtn{
-    background:none;border:none;color:var(--gray);cursor:pointer;
-    padding:7px;display:flex;align-items:center;flex-shrink:0;
+    background:rgba(29,29,31,.06);border:none;border-radius:50%;color:var(--gray);cursor:pointer;
+    width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;
   }
+  .searchBoxActions .camBtn{border-right:none;padding-right:0;}
   .micBtn svg, .camBtn svg{width:19px;height:19px;}
   .micBtn:active, .camBtn:active{color:var(--red);}
   .micBtn.listening{color:var(--red);animation:micPulse 1s ease-in-out infinite;}
