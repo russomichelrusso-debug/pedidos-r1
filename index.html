@@ -201,6 +201,9 @@
     width:30px;height:30px;border-radius:50%;line-height:1;
     display:flex;align-items:center;justify-content:center;
   }
+  .scanner-header-btns{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .scanner-switchBtn svg{width:16px;height:16px;}
+  .scanner-switchBtn.hidden{display:none;}
   .scanner-videoWrap{position:relative;flex:1;overflow:hidden;background:#000;}
   #scannerVideo{width:100%;height:100%;object-fit:cover;display:block;}
   .scanner-frame{
@@ -911,7 +914,12 @@
 <div class="scannerModal hidden" id="scannerModal">
   <div class="scanner-header">
     <span>Aponte para o código de barras</span>
-    <button type="button" id="scannerClose" aria-label="Fechar">&times;</button>
+    <div class="scanner-header-btns">
+      <button type="button" class="scanner-switchBtn hidden" id="scannerSwitchBtn" aria-label="Trocar câmera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </button>
+      <button type="button" id="scannerClose" aria-label="Fechar">&times;</button>
+    </div>
   </div>
   <div class="scanner-videoWrap">
     <video id="scannerVideo" playsinline muted></video>
@@ -2224,8 +2232,55 @@ function stopScannerTicker(){
   if(scannerTickerId){ clearInterval(scannerTickerId); scannerTickerId = null; }
 }
 
+let scannerCameras = [];
+let scannerCameraIndex = 0;
+let scannerCodeReader = null;
+
+async function startScanning(deviceId){
+  stopScannerTicker();
+  if(scannerControls){ try{ scannerControls.stop(); }catch(e){} scannerControls = null; }
+  const videoEl = document.getElementById('scannerVideo');
+  const videoConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    // foco contínuo ajuda bastante em distância curta (código de barras);
+    // navegador que não suportar essa opção simplesmente ignora, sem erro.
+    advanced: [{ focusMode: 'continuous' }]
+  };
+  if(deviceId) videoConstraints.deviceId = { exact: deviceId };
+  else videoConstraints.facingMode = { ideal: 'environment' };
+
+  startScannerTicker();
+  scannerControls = await scannerCodeReader.decodeFromConstraints({ video: videoConstraints }, videoEl, (result, err, controls) => {
+    if(result){
+      const text = result.getText();
+      controls.stop();
+      scannerControls = null;
+      closeBarcodeScanner();
+      processLevScan(text);
+      return;
+    }
+    if(err && err.name && err.name !== 'NotFoundException' && err.name !== 'ChecksumException' && err.name !== 'FormatException'){
+      console.warn('Erro inesperado no scanner:', err);
+    }
+  });
+
+  // só depois do primeiro acesso concedido os rótulos das câmeras ficam
+  // disponíveis - por isso a lista (e o botão de trocar) só aparece agora.
+  if(scannerCameras.length === 0){
+    try{
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      scannerCameras = devices.filter(d => d.kind === 'videoinput');
+      document.getElementById('scannerSwitchBtn').classList.toggle('hidden', scannerCameras.length < 2);
+    }catch(e){ /* enumerateDevices indisponível em algum navegador - ok, só não mostra o botão */ }
+  }
+}
+
 async function openBarcodeScanner(){
   document.getElementById('scannerModal').classList.remove('hidden');
+  document.getElementById('scannerSwitchBtn').classList.add('hidden');
+  scannerCameras = [];
+  scannerCameraIndex = 0;
   showScannerStatus('Carregando leitor…');
   try{
     await loadZXingScript();
@@ -2236,31 +2291,8 @@ async function openBarcodeScanner(){
   try{
     const hints = new Map();
     hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-    const codeReader = new ZXing.BrowserMultiFormatReader(hints);
-    const videoEl = document.getElementById('scannerVideo');
-    const constraints = {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
-    };
-    startScannerTicker();
-    scannerControls = await codeReader.decodeFromConstraints(constraints, videoEl, (result, err, controls) => {
-      if(result){
-        const text = result.getText();
-        controls.stop();
-        scannerControls = null;
-        closeBarcodeScanner();
-        processLevScan(text);
-        return;
-      }
-      // erros do tipo "não achei código neste quadro" disparam o tempo todo - são normais.
-      // só um erro DIFERENTE disso (raro) é logado, pra não mascarar um problema de verdade.
-      if(err && err.name && err.name !== 'NotFoundException' && err.name !== 'ChecksumException' && err.name !== 'FormatException'){
-        console.warn('Erro inesperado no scanner:', err);
-      }
-    });
+    scannerCodeReader = new ZXing.BrowserMultiFormatReader(hints);
+    await startScanning(null);
   }catch(e){
     console.error(e);
     stopScannerTicker();
@@ -2270,6 +2302,19 @@ async function openBarcodeScanner(){
     else if(e && e.name === 'NotReadableError') msg = 'A câmera já está em uso por outro app.';
     else if(e && e.name === 'OverconstrainedError') msg = 'A câmera do aparelho não aceitou a configuração pedida.';
     showScannerStatus(msg, true);
+  }
+}
+
+async function switchScannerCamera(){
+  if(scannerCameras.length < 2) return;
+  scannerCameraIndex = (scannerCameraIndex + 1) % scannerCameras.length;
+  const dev = scannerCameras[scannerCameraIndex];
+  showScannerStatus('Trocando câmera…');
+  try{
+    await startScanning(dev.deviceId);
+  }catch(e){
+    console.error(e);
+    showScannerStatus('Não foi possível trocar de câmera.', true);
   }
 }
 
@@ -2286,6 +2331,7 @@ function closeBarcodeScanner(){
 function initBarcodeScanner(){
   document.getElementById('scanBtnLev').addEventListener('click', openBarcodeScanner);
   document.getElementById('scannerClose').addEventListener('click', closeBarcodeScanner);
+  document.getElementById('scannerSwitchBtn').addEventListener('click', switchScannerCamera);
 }
 
 // ---------------- Wire up ----------------
