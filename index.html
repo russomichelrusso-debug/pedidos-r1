@@ -208,7 +208,9 @@
     border:2.5px solid rgba(255,255,255,.85);border-radius:16px;
     box-shadow:0 0 0 999px rgba(0,0,0,.35);
     pointer-events:none;
+    animation:scannerPulse 1.6s ease-in-out infinite;
   }
+  @keyframes scannerPulse{0%,100%{border-color:rgba(255,255,255,.85);}50%{border-color:rgba(255,255,255,.35);}}
   .scanner-status{
     position:absolute;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom));
     margin:0 24px;padding:12px 16px;border-radius:14px;
@@ -2178,6 +2180,8 @@ function initVoiceSearch(){
 const ZXING_CDN = 'https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js';
 let zxingLoadPromise = null;
 let scannerControls = null;
+let scannerTickerId = null;
+let scannerStartTime = 0;
 
 function loadZXingScript(){
   if(window.ZXing) return Promise.resolve();
@@ -2202,6 +2206,24 @@ function hideScannerStatus(){
   document.getElementById('scannerStatus').classList.add('hidden');
 }
 
+// Mensagem que muda sozinha enquanto procura, só pra deixar claro que a leitura
+// está mesmo tentando (e não travada) - e dar uma dica se estiver demorando.
+function startScannerTicker(){
+  scannerStartTime = Date.now();
+  showScannerStatus('Procurando código…');
+  scannerTickerId = setInterval(()=>{
+    const s = Math.floor((Date.now() - scannerStartTime) / 1000);
+    const el = document.getElementById('scannerStatus');
+    if(el.classList.contains('error')) return; // erro real na tela, não sobrescreve
+    if(s < 5) showScannerStatus('Procurando código…');
+    else if(s < 12) showScannerStatus('Ainda procurando… aproxime bem o código, preenchendo a moldura.');
+    else showScannerStatus('Sem sucesso ainda — tente mais luz, mais perto, e segure firme por um instante.');
+  }, 1500);
+}
+function stopScannerTicker(){
+  if(scannerTickerId){ clearInterval(scannerTickerId); scannerTickerId = null; }
+}
+
 async function openBarcodeScanner(){
   document.getElementById('scannerModal').classList.remove('hidden');
   showScannerStatus('Carregando leitor…');
@@ -2211,11 +2233,19 @@ async function openBarcodeScanner(){
     showScannerStatus('Não foi possível carregar o leitor de código — verifique sua internet.', true);
     return;
   }
-  hideScannerStatus();
   try{
-    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const codeReader = new ZXing.BrowserMultiFormatReader(hints);
     const videoEl = document.getElementById('scannerVideo');
-    const constraints = { video: { facingMode: 'environment' } };
+    const constraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    };
+    startScannerTicker();
     scannerControls = await codeReader.decodeFromConstraints(constraints, videoEl, (result, err, controls) => {
       if(result){
         const text = result.getText();
@@ -2223,20 +2253,28 @@ async function openBarcodeScanner(){
         scannerControls = null;
         closeBarcodeScanner();
         processLevScan(text);
+        return;
       }
-      // "err" dispara a cada quadro sem código encontrado - é normal, não trata como erro real
+      // erros do tipo "não achei código neste quadro" disparam o tempo todo - são normais.
+      // só um erro DIFERENTE disso (raro) é logado, pra não mascarar um problema de verdade.
+      if(err && err.name && err.name !== 'NotFoundException' && err.name !== 'ChecksumException' && err.name !== 'FormatException'){
+        console.warn('Erro inesperado no scanner:', err);
+      }
     });
   }catch(e){
     console.error(e);
+    stopScannerTicker();
     let msg = 'Não foi possível abrir a câmera.';
     if(e && e.name === 'NotAllowedError') msg = 'Permissão de câmera negada.';
     else if(e && e.name === 'NotFoundError') msg = 'Nenhuma câmera encontrada neste aparelho.';
     else if(e && e.name === 'NotReadableError') msg = 'A câmera já está em uso por outro app.';
+    else if(e && e.name === 'OverconstrainedError') msg = 'A câmera do aparelho não aceitou a configuração pedida.';
     showScannerStatus(msg, true);
   }
 }
 
 function closeBarcodeScanner(){
+  stopScannerTicker();
   if(scannerControls){
     try{ scannerControls.stop(); }catch(e){}
     scannerControls = null;
