@@ -177,29 +177,45 @@
   }
   .camBtn svg{width:19px;height:19px;}
   .camBtn:active{color:var(--red);}
-  .camBtn.busy{color:var(--red);animation:micPulse 1.1s ease-in-out infinite;pointer-events:none;}
-  .ocr-status{
-    margin-top:8px;padding:10px 13px;border-radius:12px;
-    background:var(--white);box-shadow:var(--shadow-1);
-    font-size:13px;color:var(--gray);display:flex;align-items:center;gap:9px;
-  }
-  .ocr-status.hidden{display:none;}
-  .ocr-status.error{color:#B3261E;background:#FDECEC;box-shadow:none;}
-  .ocr-spinner{
-    width:15px;height:15px;border-radius:50%;flex-shrink:0;
-    border:2px solid var(--hairline);border-top-color:var(--red);
-    animation:ocrspin .7s linear infinite;
-  }
-  @keyframes ocrspin{to{transform:rotate(360deg);}}
-  .ocr-readtext{
-    font-size:11.5px;color:var(--gray);padding:0 2px 2px;font-style:italic;
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  }
   .hint{
     padding:8px 4px 2px;
     font-size:12.5px;
     color:var(--gray);
   }
+
+  /* ---------- Scanner de código de barras ---------- */
+  .scannerModal{
+    position:fixed;inset:0;z-index:70;
+    background:#000;
+    display:flex;flex-direction:column;
+  }
+  .scannerModal.hidden{display:none;}
+  .scanner-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(14px + env(safe-area-inset-top)) 18px 14px;
+    color:#fff;font-size:15px;font-weight:600;
+    background:rgba(0,0,0,.4);
+  }
+  .scanner-header button{
+    background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;
+    width:30px;height:30px;border-radius:50%;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .scanner-videoWrap{position:relative;flex:1;overflow:hidden;background:#000;}
+  #scannerVideo{width:100%;height:100%;object-fit:cover;display:block;}
+  .scanner-frame{
+    position:absolute;left:10%;right:10%;top:38%;bottom:38%;
+    border:2.5px solid rgba(255,255,255,.85);border-radius:16px;
+    box-shadow:0 0 0 999px rgba(0,0,0,.35);
+    pointer-events:none;
+  }
+  .scanner-status{
+    position:absolute;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom));
+    margin:0 24px;padding:12px 16px;border-radius:14px;
+    background:rgba(29,29,31,.88);color:#fff;font-size:13.5px;text-align:center;
+  }
+  .scanner-status.hidden{display:none;}
+  .scanner-status.error{background:rgba(179,38,30,.92);}
 
   /* ---------- Results ---------- */
   .results{padding:8px 16px 10px;display:flex;flex-direction:column;gap:10px;}
@@ -808,16 +824,14 @@
       <div class="searchBox searchBox--wide">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M7 3v18M11 3v18M16 3v6M16 15v6"/></svg>
         <input type="text" id="levInput" placeholder="Escaneie o código, ou digite código/nome" autocomplete="off">
-        <button type="button" class="camBtn" id="camBtnLev" aria-label="Reconhecer produto pela foto">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        <button type="button" class="camBtn" id="scanBtnLev" aria-label="Ler código de barras pela câmera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="1"/><path d="M7 6v12M10 6v12M15 6v12M18 6v12"/></svg>
         </button>
         <button type="button" class="micBtn" id="micBtnLev" aria-label="Buscar por voz">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
-        <input type="file" id="ocrFileInput" accept="image/*" capture="environment" style="display:none;">
       </div>
-      <div class="hint">Cada leitura de código soma 1 unidade. Por nome, toque no produto certo na lista. Câmera lê o texto da embalagem e sugere o produto. O estoque também pode ser digitado direto.</div>
-      <div class="ocr-status hidden" id="ocrStatus"></div>
+      <div class="hint">Cada leitura de código soma 1 unidade. Por nome, toque no produto certo na lista. O estoque também pode ser digitado direto.</div>
     </div>
     <div class="lev-searchresults hidden" id="levSearchResults"></div>
     <div class="lev-summary" id="levSummary"></div>
@@ -890,6 +904,18 @@
     </div>
     <button id="priceEditReset" class="priceEditResetLink">Restaurar preço de tabela</button>
   </div>
+</div>
+
+<div class="scannerModal hidden" id="scannerModal">
+  <div class="scanner-header">
+    <span>Aponte para o código de barras</span>
+    <button type="button" id="scannerClose" aria-label="Fechar">&times;</button>
+  </div>
+  <div class="scanner-videoWrap">
+    <video id="scannerVideo" playsinline muted></video>
+    <div class="scanner-frame"></div>
+  </div>
+  <div class="scanner-status hidden" id="scannerStatus"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -2147,128 +2173,81 @@ function initVoiceSearch(){
 }
 
 // =================================================================
-// ---------------- Reconhecimento de produto por foto (OCR) ------
+// ---------------- Leitura de código de barras pela câmera -------
 // =================================================================
-const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-let tesseractLoadPromise = null;
-let tesseractWorkerPromise = null;
+const ZXING_CDN = 'https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js';
+let zxingLoadPromise = null;
+let scannerControls = null;
 
-function loadTesseractScript(){
-  if(window.Tesseract) return Promise.resolve();
-  if(tesseractLoadPromise) return tesseractLoadPromise;
-  tesseractLoadPromise = new Promise((resolve, reject)=>{
+function loadZXingScript(){
+  if(window.ZXing) return Promise.resolve();
+  if(zxingLoadPromise) return zxingLoadPromise;
+  zxingLoadPromise = new Promise((resolve, reject)=>{
     const s = document.createElement('script');
-    s.src = TESSERACT_CDN;
+    s.src = ZXING_CDN;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Não foi possível carregar o leitor de texto (sem internet?)'));
+    s.onerror = () => reject(new Error('load-error'));
     document.head.appendChild(s);
   });
-  return tesseractLoadPromise;
+  return zxingLoadPromise;
 }
 
-async function getTesseractWorker(){
-  if(!tesseractWorkerPromise){
-    tesseractWorkerPromise = (async ()=>{
-      await loadTesseractScript();
-      return await Tesseract.createWorker('por');
-    })();
-  }
-  return tesseractWorkerPromise;
-}
-
-function showOcrStatus(html, isError){
-  const el = document.getElementById('ocrStatus');
-  el.innerHTML = html;
+function showScannerStatus(msg, isError){
+  const el = document.getElementById('scannerStatus');
+  el.textContent = msg;
   el.classList.remove('hidden');
   el.classList.toggle('error', !!isError);
 }
-function hideOcrStatus(){
-  document.getElementById('ocrStatus').classList.add('hidden');
+function hideScannerStatus(){
+  document.getElementById('scannerStatus').classList.add('hidden');
 }
 
-// Casa o texto lido na foto com os nomes de produto já conhecidos.
-// Não depende de nenhum treinamento por produto: só compara palavras em comum
-// (números como "150", "180" pesam mais, já que costumam ser o que diferencia
-// produtos parecidos, tipo "CORTADOR HD 150" x "CORTADOR HD 180").
-function matchOcrTextToProducts(rawText, limit){
-  const normalized = normalize(rawText);
-  const tokens = normalized.split(/[^a-z0-9]+/).filter(t => t.length >= 3);
-  if(tokens.length === 0) return [];
-  const scores = [];
-  for(const p of DB.products){
-    let score = 0;
-    for(const tok of tokens){
-      const isNum = /^[0-9]+$/.test(tok);
-      if(isNum){
-        // numero precisa aparecer isolado (não como pedaço de outro número maior,
-        // ex: "150" não deve bater dentro de "1500W")
-        if(new RegExp('(^|[^0-9])' + tok + '([^0-9]|$)').test(p._n)) score += 3;
-      } else if(p._n.includes(tok)){
-        // palavras mais compridas tendem a ser mais específicas (nome/modelo) do que
-        // palavras curtas genéricas (ex: sufixo de marca repetido em muitos produtos)
-        score += Math.min(tok.length * 0.3, 3);
-      }
-    }
-    if(score > 0) scores.push([score, p]);
-  }
-  scores.sort((a,b)=> b[0]-a[0] || a[1].n.localeCompare(b[1].n));
-  const minScore = 2; // exige pelo menos algumas palavras batendo (ou 1 número)
-  return scores.filter(s=>s[0] >= minScore).slice(0, limit||8).map(s=>s[1]);
-}
-
-function renderOcrCandidates(candidates, rawText){
-  const wrap = document.getElementById('levSearchResults');
-  const snippet = escapeHtml(rawText.replace(/\s+/g,' ').trim().slice(0,80));
-  if(candidates.length === 0){
-    wrap.innerHTML = `<div class="lev-noresults">Não reconheci o produto pela foto.${snippet ? ` Texto lido: "${snippet}…"` : ' Nenhum texto legível encontrado.'}<br>Tente uma foto mais próxima e bem iluminada, ou busque por nome.</div>`;
-    wrap.classList.remove('hidden');
+async function openBarcodeScanner(){
+  document.getElementById('scannerModal').classList.remove('hidden');
+  showScannerStatus('Carregando leitor…');
+  try{
+    await loadZXingScript();
+  }catch(e){
+    showScannerStatus('Não foi possível carregar o leitor de código — verifique sua internet.', true);
     return;
   }
-  wrap.innerHTML =
-    `<div class="ocr-readtext">Texto lido: "${snippet}"</div>` +
-    candidates.map(p=>`
-      <button type="button" class="levsr-item" data-lev-pick="${p.c}">
-        <span class="levsr-name">${escapeHtml(p.n)}</span>
-        <span class="levsr-code">Cód. ${p.c}${p.e ? ' · EAN '+p.e : ''}</span>
-      </button>
-    `).join('');
-  wrap.classList.remove('hidden');
-  wrap.querySelectorAll('[data-lev-pick]').forEach(b=>{
-    b.addEventListener('click', ()=>{ selectLevSearchResult(b.dataset.levPick); hideOcrStatus(); });
-  });
-}
-
-async function runOcrOnFile(file){
-  const camBtn = document.getElementById('camBtnLev');
-  camBtn.classList.add('busy');
-  showOcrStatus('<span class="ocr-spinner"></span> Lendo texto da imagem… (pode levar alguns segundos)');
+  hideScannerStatus();
   try{
-    const worker = await getTesseractWorker();
-    const { data } = await worker.recognize(file);
-    const text = data && data.text ? data.text : '';
-    const candidates = matchOcrTextToProducts(text, 8);
-    hideOcrStatus();
-    renderOcrCandidates(candidates, text);
+    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const videoEl = document.getElementById('scannerVideo');
+    const constraints = { video: { facingMode: 'environment' } };
+    scannerControls = await codeReader.decodeFromConstraints(constraints, videoEl, (result, err, controls) => {
+      if(result){
+        const text = result.getText();
+        controls.stop();
+        scannerControls = null;
+        closeBarcodeScanner();
+        processLevScan(text);
+      }
+      // "err" dispara a cada quadro sem código encontrado - é normal, não trata como erro real
+    });
   }catch(e){
     console.error(e);
-    showOcrStatus('Não foi possível ler a imagem — verifique sua internet (a leitura de texto baixa um modelo na primeira vez) e tente de novo.', true);
-  }finally{
-    camBtn.classList.remove('busy');
+    let msg = 'Não foi possível abrir a câmera.';
+    if(e && e.name === 'NotAllowedError') msg = 'Permissão de câmera negada.';
+    else if(e && e.name === 'NotFoundError') msg = 'Nenhuma câmera encontrada neste aparelho.';
+    else if(e && e.name === 'NotReadableError') msg = 'A câmera já está em uso por outro app.';
+    showScannerStatus(msg, true);
   }
 }
 
-function initOcr(){
-  const camBtn = document.getElementById('camBtnLev');
-  const fileInput = document.getElementById('ocrFileInput');
-  camBtn.addEventListener('click', ()=>{
-    hideOcrStatus();
-    fileInput.value = '';
-    fileInput.click();
-  });
-  fileInput.addEventListener('change', ()=>{
-    const file = fileInput.files && fileInput.files[0];
-    if(file) runOcrOnFile(file);
-  });
+function closeBarcodeScanner(){
+  if(scannerControls){
+    try{ scannerControls.stop(); }catch(e){}
+    scannerControls = null;
+  }
+  document.getElementById('scannerModal').classList.add('hidden');
+  hideScannerStatus();
+}
+
+function initBarcodeScanner(){
+  document.getElementById('scanBtnLev').addEventListener('click', openBarcodeScanner);
+  document.getElementById('scannerClose').addEventListener('click', closeBarcodeScanner);
 }
 
 // ---------------- Wire up ----------------
@@ -2286,7 +2265,7 @@ async function init(){
   initCsvNamePrompt();
   initPriceEdit();
   initVoiceSearch();
-  initOcr();
+  initBarcodeScanner();
 
   const searchInput = document.getElementById('searchInput');
   let debounceTimer;
