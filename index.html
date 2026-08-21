@@ -2185,11 +2185,21 @@ function initVoiceSearch(){
 // =================================================================
 // ---------------- Leitura de código de barras pela câmera -------
 // =================================================================
+// Duas engines possíveis: BarcodeDetector nativo do navegador (prioridade,
+// quando disponível - roda no motor do próprio Chrome, não em JS puro) ou
+// ZXing via CDN como alternativa pra navegador sem essa API.
 const ZXING_CDN = 'https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js';
 let zxingLoadPromise = null;
 let scannerControls = null;
 let scannerTickerId = null;
 let scannerStartTime = 0;
+let scannerEngine = null; // 'native' | 'zxing'
+let scannerNativeIntervalId = null;
+let scannerNativeDetector = null;
+let scannerCameras = [];
+let scannerCameraIndex = 0;
+let scannerCodeReader = null;
+let scannerAttemptCount = 0;
 
 function loadZXingScript(){
   if(window.ZXing) return Promise.resolve();
@@ -2229,7 +2239,7 @@ function startScannerTicker(){
     if(scannerAttemptCount === 0 && s >= 3){
       showScannerStatus(`O leitor não conseguiu nem começar a tentar (0 quadros lidos em ${s}s) — pode ser bloqueio da própria câmera. Feche e abra de novo.`, true);
     } else if(s < 5) showScannerStatus(`Procurando código… (${n} quadros lidos)`);
-    else if(s < 12) showScannerStatus(`Ainda procurando (${n} quadros lidos)… aproxime bem o código, preenchendo a moldura.`);
+    else if(s < 12) showScannerStatus(`Ainda procurando (${n} quadros lidos)… aproxime bem, deixando o código ocupar quase toda a moldura.`);
     else showScannerStatus(`Sem sucesso ainda (${n} quadros lidos) — tente mais luz, mais perto, e segure firme.`);
   }, 1000);
 }
@@ -2237,27 +2247,67 @@ function stopScannerTicker(){
   if(scannerTickerId){ clearInterval(scannerTickerId); scannerTickerId = null; }
 }
 
-let scannerCameras = [];
-let scannerCameraIndex = 0;
-let scannerCodeReader = null;
-let scannerAttemptCount = 0;
-
-async function startScanning(deviceId){
-  stopScannerTicker();
+async function releaseCameraStream(){
   const videoEl = document.getElementById('scannerVideo');
-
-  // para o loop de decodificação E o stream de vídeo de verdade (liberando a câmera
-  // no nível do sistema) - só parar o "controls" do ZXing às vezes não é suficiente,
-  // e tentar abrir a câmera seguinte antes da anterior liberar causa erro.
+  if(scannerNativeIntervalId){ clearInterval(scannerNativeIntervalId); scannerNativeIntervalId = null; }
   if(scannerControls){ try{ scannerControls.stop(); }catch(e){} scannerControls = null; }
   if(videoEl.srcObject){
     try{ videoEl.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){}
     videoEl.srcObject = null;
   }
+}
+
+async function startNativeScanning(deviceId){
+  stopScannerTicker();
+  await releaseCameraStream();
   await new Promise(r=>setTimeout(r, 350)); // dá tempo do hardware da câmera liberar
 
-  // resolução mais modesta (mais compatível) - pedir 1920x1080 em aparelhos
-  // médios às vezes força um modo de câmera pior pra foco de perto
+  const videoEl = document.getElementById('scannerVideo');
+  const videoConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
+  if(deviceId) videoConstraints.deviceId = { exact: deviceId };
+  else videoConstraints.facingMode = { ideal: 'environment' };
+
+  const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+  videoEl.srcObject = stream;
+  try{ await videoEl.play(); }catch(e){ /* autoplay com muted+playsinline cobre a maioria dos casos */ }
+
+  if(!scannerNativeDetector){
+    scannerNativeDetector = new BarcodeDetector({
+      formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','code_93','codabar','itf','qr_code']
+    });
+  }
+
+  startScannerTicker();
+  scannerNativeIntervalId = setInterval(async ()=>{
+    if(videoEl.readyState < 2) return;
+    try{
+      const barcodes = await scannerNativeDetector.detect(videoEl);
+      scannerAttemptCount++;
+      if(barcodes && barcodes.length){
+        const text = barcodes[0].rawValue;
+        closeBarcodeScanner();
+        processLevScan(text);
+      }
+    }catch(e){
+      console.warn('Erro no BarcodeDetector:', e);
+    }
+  }, 220);
+
+  if(scannerCameras.length === 0){
+    try{
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      scannerCameras = devices.filter(d => d.kind === 'videoinput');
+      document.getElementById('scannerSwitchBtn').classList.toggle('hidden', scannerCameras.length < 2);
+    }catch(e){ /* enumerateDevices indisponível em algum navegador - ok, só não mostra o botão */ }
+  }
+}
+
+async function startZXingScanning(deviceId){
+  stopScannerTicker();
+  await releaseCameraStream();
+  await new Promise(r=>setTimeout(r, 350)); // dá tempo do hardware da câmera liberar
+
+  const videoEl = document.getElementById('scannerVideo');
   const videoConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
   if(deviceId) videoConstraints.deviceId = { exact: deviceId };
   else videoConstraints.facingMode = { ideal: 'environment' };
@@ -2278,8 +2328,6 @@ async function startScanning(deviceId){
     }
   });
 
-  // só depois do primeiro acesso concedido os rótulos das câmeras ficam
-  // disponíveis - por isso a lista (e o botão de trocar) só aparece agora.
   if(scannerCameras.length === 0){
     try{
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -2289,11 +2337,31 @@ async function startScanning(deviceId){
   }
 }
 
+function startScanning(deviceId){
+  return scannerEngine === 'native' ? startNativeScanning(deviceId) : startZXingScanning(deviceId);
+}
+
 async function openBarcodeScanner(){
   document.getElementById('scannerModal').classList.remove('hidden');
   document.getElementById('scannerSwitchBtn').classList.add('hidden');
   scannerCameras = [];
   scannerCameraIndex = 0;
+  scannerNativeDetector = null;
+
+  // tenta primeiro a API nativa do navegador (geralmente mais robusta em
+  // condição real de foto do que um decodificador em JS puro)
+  if('BarcodeDetector' in window){
+    try{
+      const supported = await BarcodeDetector.getSupportedFormats();
+      if(supported.includes('ean_13')){
+        scannerEngine = 'native';
+        await startScanning(null);
+        return;
+      }
+    }catch(e){ /* segue pro ZXing */ }
+  }
+
+  scannerEngine = 'zxing';
   showScannerStatus('Carregando leitor…');
   try{
     await loadZXingScript();
@@ -2302,8 +2370,6 @@ async function openBarcodeScanner(){
     return;
   }
   try{
-    // sem hints por enquanto - configuração mais simples e mais próxima do
-    // exemplo oficial, pra isolar se o problema está nos hints ou em outra coisa
     scannerCodeReader = new ZXing.BrowserMultiFormatReader();
     await startScanning(null);
   }catch(e){
@@ -2338,15 +2404,7 @@ async function switchScannerCamera(){
 
 function closeBarcodeScanner(){
   stopScannerTicker();
-  if(scannerControls){
-    try{ scannerControls.stop(); }catch(e){}
-    scannerControls = null;
-  }
-  const videoEl = document.getElementById('scannerVideo');
-  if(videoEl.srcObject){
-    try{ videoEl.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){}
-    videoEl.srcObject = null;
-  }
+  releaseCameraStream();
   document.getElementById('scannerModal').classList.add('hidden');
   hideScannerStatus();
 }
