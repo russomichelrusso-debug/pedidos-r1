@@ -1080,7 +1080,8 @@
     <label>O desconto vale pra…</label>
     <div class="segmented" id="targetTypeSeg" style="margin-bottom:12px;">
       <button type="button" data-v="category" class="active">Categoria</button>
-      <button type="button" data-v="product">Produto específico</button>
+      <button type="button" data-v="product">Produto</button>
+      <button type="button" data-v="skuList">Grupo de produtos</button>
     </div>
     <div id="targetCatWrap">
       <select id="promoTargetCat" style="margin-bottom:16px;"></select>
@@ -1088,6 +1089,11 @@
     <div id="targetProdWrap" class="hidden">
       <input type="text" id="promoTargetProd" placeholder="Código do produto (ex: 60863)" style="margin-bottom:4px;">
       <div class="prodResolveMsg" id="targetProdResolve"></div>
+    </div>
+    <div id="targetSkuListWrap" class="hidden">
+      <input type="text" id="promoTargetSkuList" placeholder="Códigos separados por vírgula (ex: 61748, 62112, 61749)" style="margin-bottom:4px;">
+      <div class="prodResolveMsg" id="targetSkuListResolve"></div>
+      <p class="ap-hint" style="margin:0 0 16px;">Use pra quando vários produtos diferentes dividem o mesmo degrau, somando a quantidade de todos juntos (ex: várias variações do mesmo item).</p>
     </div>
 
     <label>Quando ativa?</label>
@@ -1108,7 +1114,15 @@
     </div>
 
     <div id="comboWrap" class="hidden">
-      <label>Itens que precisam estar TODOS no carrinho</label>
+      <label>Itens da cesta</label>
+      <div class="segmented" id="basketModeSeg" style="margin-bottom:12px;">
+        <button type="button" data-v="all" class="active">Precisa ter TODOS</button>
+        <button type="button" data-v="atLeast">Pelo menos N destes</button>
+      </div>
+      <div id="basketMinCountWrap" class="hidden" style="margin-bottom:12px;">
+        <label for="promoBasketMinCount">Quantos itens da lista precisam estar presentes</label>
+        <input class="num-input" type="number" id="promoBasketMinCount" min="1" step="1" value="1" style="margin-bottom:0;">
+      </div>
       <div id="basketItemsList"></div>
       <button type="button" class="priceEditResetLink" id="addBasketItemBtn" style="text-decoration:none;color:var(--red);font-weight:700;margin-bottom:14px;">+ adicionar item à cesta</button>
       <label for="promoComboPct">Desconto quando a cesta estiver completa</label>
@@ -1529,6 +1543,7 @@ function changeQty(cod, direction){
 
 function scopeMatchesProduct(type, value, p){
   if(type === 'product') return p.c === value;
+  if(type === 'skuList') return value.split(',').map(s=>s.trim()).includes(p.c);
   return DB.categories[p.cat] === value;
 }
 function scopeTotals(rows, type, value){
@@ -1543,6 +1558,10 @@ function scopeLabel(type, value){
     const p = productByCod(value);
     return p ? `${p.n} (cód. ${value})` : `produto ${value}`;
   }
+  if(type === 'skuList'){
+    const codes = value.split(',').map(s=>s.trim()).filter(Boolean);
+    return `grupo de ${codes.length} produtos (${codes.join(', ')})`;
+  }
   return value;
 }
 
@@ -1554,11 +1573,13 @@ function computeCampaignBonuses(rows){
 
     if(rule.basis === 'combo'){
       const items = rule.basketItems || [];
-      const allPresent = items.length > 0 && items.every(item=>{
+      const metCount = items.filter(item=>{
         const t = scopeTotals(rows, item.type, item.value);
         return t.qty >= (item.minQty || 1);
-      });
-      if(allPresent) pct = rule.comboPct || 0;
+      }).length;
+      const needed = rule.basketMode === 'atLeast' ? (rule.basketMinCount || items.length) : items.length;
+      const conditionMet = items.length > 0 && metCount >= needed;
+      if(conditionMet) pct = rule.comboPct || 0;
     } else {
       const t = scopeTotals(rows, rule.targetType, rule.targetValue);
       const basisValue = rule.selfMetric === 'value' ? t.gross : t.qty;
@@ -1577,6 +1598,21 @@ function computeCampaignBonuses(rows){
   return bonusByTarget;
 }
 
+function bestBonusForProduct(bonuses, p){
+  let best = bonuses['product|'+p.c] || null;
+  const cat = bonuses['category|'+DB.categories[p.cat]];
+  if(cat && (!best || cat.pct > best.pct)) best = cat;
+  for(const key in bonuses){
+    if(!key.startsWith('skuList|')) continue;
+    const value = key.slice('skuList|'.length);
+    if(scopeMatchesProduct('skuList', value, p)){
+      const b = bonuses[key];
+      if(!best || b.pct > best.pct) best = b;
+    }
+  }
+  return best;
+}
+
 function cartTotals(){
   let total = 0;
   const baseRows = state.cart.map(it=>{
@@ -1590,8 +1626,7 @@ function cartTotals(){
   const bonuses = computeCampaignBonuses(baseRows);
 
   const rows = baseRows.map(r=>{
-    const cat = DB.categories[r.p.cat];
-    const bonus = bonuses['product|'+r.p.c] || bonuses['category|'+cat];
+    const bonus = bestBonusForProduct(bonuses, r.p);
     let cp = r.cp;
     let campaignPct = 0, campaignName = null;
     if(bonus && r.p.fx !== 1){ // Preço Fixo bloqueia bônus de campanha, igual aos outros descontos
@@ -2387,7 +2422,8 @@ function ruleSummaryText(r){
   const targetLabel = scopeLabel(r.targetType, r.targetValue);
   if(r.basis === 'combo'){
     const itemsLabel = (r.basketItems||[]).map(i=>`${scopeLabel(i.type,i.value)} (mín. ${i.minQty||1})`).join(' + ');
-    return `Cesta: ${itemsLabel} → ${r.comboPct}% em "${targetLabel}"`;
+    const modeLabel = r.basketMode === 'atLeast' ? `pelo menos ${r.basketMinCount} de: ` : 'todos: ';
+    return `Cesta (${modeLabel}${itemsLabel}) → ${r.comboPct}% em "${targetLabel}"`;
   }
   const metricLabel = r.selfMetric === 'value' ? 'Valor bruto' : 'Quantidade';
   return `${metricLabel} de "${targetLabel}". Degraus: ${describeTiers(r.tiers)}`;
@@ -2478,16 +2514,37 @@ function resolveProductCodeDisplay(code, msgEl){
   if(p){ msgEl.textContent = '✓ ' + p.n; msgEl.classList.add('ok'); return p; }
   msgEl.textContent = 'Código não encontrado'; msgEl.classList.add('err'); return null;
 }
+function resolveSkuListDisplay(text, msgEl){
+  if(!msgEl) return [];
+  const codes = (text||'').split(',').map(s=>s.trim()).filter(Boolean);
+  msgEl.classList.remove('ok','err');
+  if(codes.length === 0){ msgEl.textContent = ''; return []; }
+  const found = [], notFound = [];
+  codes.forEach(c=>{ const p = productByCod(c); if(p) found.push(p.n); else notFound.push(c); });
+  if(notFound.length){
+    msgEl.textContent = `Não encontrado: ${notFound.join(', ')}`;
+    msgEl.classList.add('err');
+  } else {
+    msgEl.textContent = `✓ ${found.length} produto(s): ${found.join(' · ')}`;
+    msgEl.classList.add('ok');
+  }
+  return codes;
+}
 
 function setTargetType(type){
   document.getElementById('targetTypeSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.v===type));
   document.getElementById('targetCatWrap').classList.toggle('hidden', type!=='category');
   document.getElementById('targetProdWrap').classList.toggle('hidden', type!=='product');
+  document.getElementById('targetSkuListWrap').classList.toggle('hidden', type!=='skuList');
 }
 function setBasis(basis){
   document.getElementById('basisSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.v===basis));
   document.getElementById('selfWrap').classList.toggle('hidden', basis!=='self');
   document.getElementById('comboWrap').classList.toggle('hidden', basis!=='combo');
+}
+function setBasketMode(mode){
+  document.getElementById('basketModeSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.v===mode));
+  document.getElementById('basketMinCountWrap').classList.toggle('hidden', mode!=='atLeast');
 }
 
 function renderBasketItems(items){
@@ -2557,6 +2614,9 @@ function openPromoRuleForm(ruleId){
   setTargetType(targetType);
   if(targetType === 'category'){
     document.getElementById('promoTargetCat').value = rule ? rule.targetValue : (DB.categories[0]||'');
+  } else if(targetType === 'skuList'){
+    document.getElementById('promoTargetSkuList').value = rule ? rule.targetValue : '';
+    resolveSkuListDisplay(rule ? rule.targetValue : '', document.getElementById('targetSkuListResolve'));
   } else {
     document.getElementById('promoTargetProd').value = rule ? rule.targetValue : '';
     resolveProductCodeDisplay(rule ? rule.targetValue : '', document.getElementById('targetProdResolve'));
@@ -2566,6 +2626,8 @@ function openPromoRuleForm(ruleId){
   setBasis(basis);
   document.getElementById('promoSelfMetric').value = rule ? (rule.selfMetric||'qty') : 'qty';
   renderTierRows(rule && rule.tiers && rule.tiers.length ? rule.tiers : [{min:0,pct:0}]);
+  setBasketMode(rule && rule.basketMode === 'atLeast' ? 'atLeast' : 'all');
+  document.getElementById('promoBasketMinCount').value = rule ? (rule.basketMinCount||1) : 1;
   renderBasketItems(rule && rule.basketItems && rule.basketItems.length ? rule.basketItems : [{type:'category', value:DB.categories[0]||'', minQty:1}]);
   document.getElementById('promoComboPct').value = rule ? (rule.comboPct||'') : '';
 
@@ -2581,18 +2643,28 @@ function closePromoRuleForm(){
 function savePromoRuleFromForm(){
   const name = document.getElementById('promoName').value.trim();
   const targetType = document.getElementById('targetTypeSeg').querySelector('button.active').dataset.v;
-  const targetValue = targetType === 'category'
-    ? document.getElementById('promoTargetCat').value
-    : document.getElementById('promoTargetProd').value.trim();
+  let targetValue;
+  if(targetType === 'category') targetValue = document.getElementById('promoTargetCat').value;
+  else if(targetType === 'skuList') targetValue = document.getElementById('promoTargetSkuList').value.trim();
+  else targetValue = document.getElementById('promoTargetProd').value.trim();
   const basis = document.getElementById('basisSeg').querySelector('button.active').dataset.v;
   const stacks = document.getElementById('promoStacks').checked;
   const msg = document.getElementById('promoFormMsg');
 
   if(!name){ msg.innerHTML = '<div class="ap-msg error">Dê um nome pra essa regra.</div>'; return; }
-  if(!targetValue){ msg.innerHTML = '<div class="ap-msg error">Informe a categoria ou o código do produto que recebe o desconto.</div>'; return; }
+  if(!targetValue){ msg.innerHTML = '<div class="ap-msg error">Informe a categoria, produto ou grupo que recebe o desconto.</div>'; return; }
   if(targetType === 'product' && !productByCod(targetValue)){
     msg.innerHTML = '<div class="ap-msg error">Código de produto não encontrado — confira o código.</div>';
     return;
+  }
+  if(targetType === 'skuList'){
+    const codes = targetValue.split(',').map(s=>s.trim()).filter(Boolean);
+    const notFound = codes.filter(c=>!productByCod(c));
+    if(notFound.length){
+      msg.innerHTML = `<div class="ap-msg error">Código(s) não encontrado(s) no grupo: ${escapeHtml(notFound.join(', '))}</div>`;
+      return;
+    }
+    targetValue = codes.join(',');
   }
 
   const rule = { id: promoEditingId || ('r'+Date.now()), name, active:true, targetType, targetValue, basis, stacks };
@@ -2613,8 +2685,16 @@ function savePromoRuleFromForm(){
     if(items.length === 0){ msg.innerHTML = '<div class="ap-msg error">Adicione ao menos um item à cesta.</div>'; return; }
     const comboPct = parseFloat(document.getElementById('promoComboPct').value) || 0;
     if(comboPct <= 0){ msg.innerHTML = '<div class="ap-msg error">Informe o desconto (%) para quando a cesta estiver completa.</div>'; return; }
+    const basketMode = document.getElementById('basketModeSeg').querySelector('button.active').dataset.v;
+    const basketMinCount = parseInt(document.getElementById('promoBasketMinCount').value, 10) || 1;
+    if(basketMode === 'atLeast' && basketMinCount > items.length){
+      msg.innerHTML = `<div class="ap-msg error">O mínimo (${basketMinCount}) não pode ser maior que o número de itens na cesta (${items.length}).</div>`;
+      return;
+    }
     rule.basketItems = items;
     rule.comboPct = comboPct;
+    rule.basketMode = basketMode;
+    rule.basketMinCount = basketMode === 'atLeast' ? basketMinCount : items.length;
   }
 
   if(promoEditingId){
@@ -2683,8 +2763,14 @@ function initPromoRulesAdmin(){
   document.getElementById('basisSeg').querySelectorAll('button').forEach(b=>{
     b.addEventListener('click', ()=>setBasis(b.dataset.v));
   });
+  document.getElementById('basketModeSeg').querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>setBasketMode(b.dataset.v));
+  });
   document.getElementById('promoTargetProd').addEventListener('input', (e)=>{
     resolveProductCodeDisplay(e.target.value, document.getElementById('targetProdResolve'));
+  });
+  document.getElementById('promoTargetSkuList').addEventListener('input', (e)=>{
+    resolveSkuListDisplay(e.target.value, document.getElementById('targetSkuListResolve'));
   });
   document.getElementById('exportPromoBtn').addEventListener('click', exportPromoRulesJSON);
   const fileInput = document.getElementById('promoFileInput');
