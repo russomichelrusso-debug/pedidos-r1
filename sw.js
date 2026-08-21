@@ -1,5 +1,5 @@
 const CACHE_NAME = 'cortag-precos-v1';
-const APP_SHELL = ['.', './index.html', './manifest.json', './precos.json'];
+const APP_SHELL = ['.', './index.html', './manifest.json', './precos.json', './promocoes.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
