@@ -570,6 +570,25 @@
     width:24px;height:24px;display:flex;align-items:center;justify-content:center;
   }
   .promoEmpty{font-size:13px;color:var(--gray);padding:8px 0;}
+  .prodResolveMsg{font-size:12px;margin:0 0 14px;min-height:16px;}
+  .prodResolveMsg.ok{color:#1E8E3E;}
+  .prodResolveMsg.err{color:#B3261E;}
+  .basketItemRow{
+    background:var(--fill);border-radius:12px;padding:10px 12px;margin-bottom:8px;
+  }
+  .basketItemRow .biTop{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+  .basketItemRow select{background:var(--white);padding:8px 9px;font-size:13px;width:auto;flex:1;}
+  .basketItemRow input[type=text]{background:var(--white);padding:8px 9px;font-size:13px;flex:1;margin:0;}
+  .basketItemRow input[type=number]{background:var(--white);padding:8px 9px;font-size:13px;width:70px;flex-shrink:0;margin:0;}
+  .basketItemRow .rmBasket{
+    background:none;border:none;color:var(--gray);font-size:18px;cursor:pointer;flex-shrink:0;
+    width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  }
+  .basketItemRow .biBottom{display:flex;align-items:center;gap:6px;}
+  .basketItemRow .biBottom .biQtyLbl{font-size:11.5px;color:var(--gray);white-space:nowrap;}
+  .basketItemRow .biResolve{font-size:11px;margin-top:3px;}
+  .basketItemRow .biResolve.ok{color:#1E8E3E;}
+  .basketItemRow .biResolve.err{color:#B3261E;}
 
   /* ---------- Mini modal ---------- */
   .minimodal{
@@ -1058,25 +1077,45 @@
     <label for="promoName">Nome da regra</label>
     <input type="text" id="promoName" placeholder="Ex: Campanha de discos - agosto">
 
-    <label for="promoTargetCat">Categoria que recebe o desconto</label>
-    <select id="promoTargetCat" style="margin-bottom:16px;"></select>
-
-    <label for="promoBasis">Condição pra ativar</label>
-    <select id="promoBasis" style="margin-bottom:16px;">
-      <option value="qty">Quantidade comprada dessa categoria</option>
-      <option value="value">Valor bruto comprado dessa categoria (R$)</option>
-      <option value="comboQty">Quantidade comprada de OUTRA categoria (combo)</option>
-      <option value="comboValue">Valor bruto de OUTRA categoria (combo)</option>
-    </select>
-
-    <div id="promoComboWrap" class="hidden">
-      <label for="promoConditionCat">Categoria complementar (combo)</label>
-      <select id="promoConditionCat" style="margin-bottom:16px;"></select>
+    <label>O desconto vale pra…</label>
+    <div class="segmented" id="targetTypeSeg" style="margin-bottom:12px;">
+      <button type="button" data-v="category" class="active">Categoria</button>
+      <button type="button" data-v="product">Produto específico</button>
+    </div>
+    <div id="targetCatWrap">
+      <select id="promoTargetCat" style="margin-bottom:16px;"></select>
+    </div>
+    <div id="targetProdWrap" class="hidden">
+      <input type="text" id="promoTargetProd" placeholder="Código do produto (ex: 60863)" style="margin-bottom:4px;">
+      <div class="prodResolveMsg" id="targetProdResolve"></div>
     </div>
 
-    <label>Degraus (mínimo → desconto)</label>
-    <div id="promoTiersList"></div>
-    <button type="button" class="priceEditResetLink" id="addTierBtn" style="text-decoration:none;color:var(--red);font-weight:700;margin-bottom:16px;">+ adicionar degrau</button>
+    <label>Quando ativa?</label>
+    <div class="segmented" id="basisSeg" style="margin-bottom:12px;">
+      <button type="button" data-v="self" class="active">Por quantidade/valor</button>
+      <button type="button" data-v="combo">Cesta (com outros itens)</button>
+    </div>
+
+    <div id="selfWrap">
+      <label for="promoSelfMetric">Baseado em</label>
+      <select id="promoSelfMetric" style="margin-bottom:16px;">
+        <option value="qty">Quantidade comprada</option>
+        <option value="value">Valor bruto comprado (R$)</option>
+      </select>
+      <label>Degraus (mínimo → desconto)</label>
+      <div id="promoTiersList"></div>
+      <button type="button" class="priceEditResetLink" id="addTierBtn" style="text-decoration:none;color:var(--red);font-weight:700;margin-bottom:16px;">+ adicionar degrau</button>
+    </div>
+
+    <div id="comboWrap" class="hidden">
+      <label>Itens que precisam estar TODOS no carrinho</label>
+      <div id="basketItemsList"></div>
+      <button type="button" class="priceEditResetLink" id="addBasketItemBtn" style="text-decoration:none;color:var(--red);font-weight:700;margin-bottom:14px;">+ adicionar item à cesta</button>
+      <label for="promoComboPct">Desconto quando a cesta estiver completa</label>
+      <div class="pct-wrap" style="margin-bottom:16px;">
+        <input class="num-input" type="number" id="promoComboPct" min="0" max="90" step="0.5" placeholder="0">
+      </div>
+    </div>
 
     <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink);margin-bottom:16px;">
       <input type="checkbox" id="promoStacks" checked style="width:auto;margin:0;">
@@ -1465,55 +1504,77 @@ function changeQty(cod, direction){
 // =================================================================
 // ---------------- Campanhas promocionais -------------------------
 // =================================================================
-// Regras sazonais configuráveis, baseadas em categoria (FAMÍLIA COMERCIAL).
-// Cada regra observa a quantidade OU o valor bruto total de uma categoria no
-// carrinho (ou de outra categoria, no caso de combo) e aplica um % de bônus
-// quando o maior degrau (tier) configurado é atingido.
+// Regras sazonais configuráveis. O alvo do desconto (quem recebe) pode ser
+// uma CATEGORIA inteira ou um PRODUTO específico (por código). A condição
+// pra ativar pode ser:
+//   - "self": a própria quantidade/valor bruto do alvo, com degraus
+//     (ex: produto 60863 a partir de 40un = 5%, a partir de 60un = 8%)
+//   - "combo": uma CESTA de outros itens (categorias e/ou produtos
+//     específicos) que precisam estar TODOS no carrinho, com um percentual
+//     fixo quando a cesta inteira está presente
+//     (ex: produto1 + produto2 + produto3 juntos = 12% no produto1)
 //
 // Formato de cada regra (salva em state.promoRules):
 // {
 //   id, name, active,
-//   targetCategory: "categoria que recebe o desconto",
-//   basis: "qty" | "value" | "comboQty" | "comboValue",
-//   conditionCategory: null, // só usado em comboQty/comboValue
-//   tiers: [{min:40, pct:5}, {min:80, pct:10}],
+//   targetType: "category" | "product",
+//   targetValue: "nome da categoria" ou "código do produto",
+//   basis: "self" | "combo",
+//   selfMetric: "qty" | "value",           // usado só quando basis === "self"
+//   tiers: [{min:40, pct:5}, ...],          // usado só quando basis === "self"
+//   basketItems: [{type:"category"|"product", value:"...", minQty:1}, ...], // usado só quando basis === "combo"
+//   comboPct: 15,                           // usado só quando basis === "combo"
 //   stacks: true, // true = soma com desconto manual do item; false = usa o maior dos dois
 // }
 
-function computeCategoryTotals(rows){
-  const byCat = {};
+function scopeMatchesProduct(type, value, p){
+  if(type === 'product') return p.c === value;
+  return DB.categories[p.cat] === value;
+}
+function scopeTotals(rows, type, value){
+  let qty = 0, gross = 0;
   for(const r of rows){
-    const cat = DB.categories[r.p.cat];
-    if(!byCat[cat]) byCat[cat] = {qty:0, value:0};
-    byCat[cat].qty += r.it.qty;
-    byCat[cat].value += r.lineTotal;
+    if(scopeMatchesProduct(type, value, r.p)){ qty += r.it.qty; gross += r.lineTotal; }
   }
-  return byCat;
+  return {qty, gross};
+}
+function scopeLabel(type, value){
+  if(type === 'product'){
+    const p = productByCod(value);
+    return p ? `${p.n} (cód. ${value})` : `produto ${value}`;
+  }
+  return value;
 }
 
 function computeCampaignBonuses(rows){
-  const byCat = computeCategoryTotals(rows);
-  const bonusByCategory = {};
+  const bonusByTarget = {}; // chave "type|value" -> {pct, stacks, ruleName}
   for(const rule of (state.promoRules||[])){
     if(!rule.active) continue;
-    let basisValue = 0;
-    if(rule.basis === 'qty') basisValue = (byCat[rule.targetCategory]||{qty:0}).qty;
-    else if(rule.basis === 'value') basisValue = (byCat[rule.targetCategory]||{value:0}).value;
-    else if(rule.basis === 'comboQty') basisValue = (byCat[rule.conditionCategory]||{qty:0}).qty;
-    else if(rule.basis === 'comboValue') basisValue = (byCat[rule.conditionCategory]||{value:0}).value;
-
     let pct = 0;
-    for(const tier of (rule.tiers||[])){
-      if(basisValue >= tier.min && tier.pct > pct) pct = tier.pct;
-    }
-    if(pct <= 0) continue;
 
-    const existing = bonusByCategory[rule.targetCategory];
+    if(rule.basis === 'combo'){
+      const items = rule.basketItems || [];
+      const allPresent = items.length > 0 && items.every(item=>{
+        const t = scopeTotals(rows, item.type, item.value);
+        return t.qty >= (item.minQty || 1);
+      });
+      if(allPresent) pct = rule.comboPct || 0;
+    } else {
+      const t = scopeTotals(rows, rule.targetType, rule.targetValue);
+      const basisValue = rule.selfMetric === 'value' ? t.gross : t.qty;
+      for(const tier of (rule.tiers||[])){
+        if(basisValue >= tier.min && tier.pct > pct) pct = tier.pct;
+      }
+    }
+
+    if(pct <= 0) continue;
+    const key = rule.targetType + '|' + rule.targetValue;
+    const existing = bonusByTarget[key];
     if(!existing || pct > existing.pct){
-      bonusByCategory[rule.targetCategory] = {pct, stacks: rule.stacks !== false, ruleName: rule.name};
+      bonusByTarget[key] = {pct, stacks: rule.stacks !== false, ruleName: rule.name};
     }
   }
-  return bonusByCategory;
+  return bonusByTarget;
 }
 
 function cartTotals(){
@@ -1530,7 +1591,7 @@ function cartTotals(){
 
   const rows = baseRows.map(r=>{
     const cat = DB.categories[r.p.cat];
-    const bonus = bonuses[cat];
+    const bonus = bonuses['product|'+r.p.c] || bonuses['category|'+cat];
     let cp = r.cp;
     let campaignPct = 0, campaignName = null;
     if(bonus && r.p.fx !== 1){ // Preço Fixo bloqueia bônus de campanha, igual aos outros descontos
@@ -2319,18 +2380,17 @@ function findByExactCode(raw){
 // ---------------- Admin de campanhas promocionais ----------------
 let promoEditingId = null;
 
-function basisLabel(basis){
-  return {qty:'quantidade', value:'valor bruto', comboQty:'quantidade de', comboValue:'valor de'}[basis] || basis;
-}
 function describeTiers(tiers){
-  return (tiers||[]).map(t=>`${t.min}${t.min>=100?'':''} → ${t.pct}%`).join(' · ');
+  return (tiers||[]).map(t=>`${t.min} → ${t.pct}%`).join(' · ');
 }
 function ruleSummaryText(r){
-  if(r.basis==='qty') return `Quantidade de "${r.targetCategory}" ≥ degrau → desconto na própria categoria. Degraus: ${describeTiers(r.tiers)}`;
-  if(r.basis==='value') return `Valor bruto de "${r.targetCategory}" ≥ degrau (R$) → desconto na própria categoria. Degraus: ${describeTiers(r.tiers)}`;
-  if(r.basis==='comboQty') return `Quantidade de "${r.conditionCategory}" ≥ degrau → bônus em "${r.targetCategory}". Degraus: ${describeTiers(r.tiers)}`;
-  if(r.basis==='comboValue') return `Valor bruto de "${r.conditionCategory}" ≥ degrau (R$) → bônus em "${r.targetCategory}". Degraus: ${describeTiers(r.tiers)}`;
-  return '';
+  const targetLabel = scopeLabel(r.targetType, r.targetValue);
+  if(r.basis === 'combo'){
+    const itemsLabel = (r.basketItems||[]).map(i=>`${scopeLabel(i.type,i.value)} (mín. ${i.minQty||1})`).join(' + ');
+    return `Cesta: ${itemsLabel} → ${r.comboPct}% em "${targetLabel}"`;
+  }
+  const metricLabel = r.selfMetric === 'value' ? 'Valor bruto' : 'Quantidade';
+  return `${metricLabel} de "${targetLabel}". Degraus: ${describeTiers(r.tiers)}`;
 }
 
 function refreshPromoStatus(){
@@ -2407,21 +2467,109 @@ function readTiersFromForm(){
 function populateCategorySelects(){
   const opts = DB.categories.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   document.getElementById('promoTargetCat').innerHTML = opts;
-  document.getElementById('promoConditionCat').innerHTML = opts;
+}
+
+function resolveProductCodeDisplay(code, msgEl){
+  if(!msgEl) return null;
+  const clean = (code||'').trim();
+  msgEl.classList.remove('ok','err');
+  if(!clean){ msgEl.textContent = ''; return null; }
+  const p = productByCod(clean);
+  if(p){ msgEl.textContent = '✓ ' + p.n; msgEl.classList.add('ok'); return p; }
+  msgEl.textContent = 'Código não encontrado'; msgEl.classList.add('err'); return null;
+}
+
+function setTargetType(type){
+  document.getElementById('targetTypeSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.v===type));
+  document.getElementById('targetCatWrap').classList.toggle('hidden', type!=='category');
+  document.getElementById('targetProdWrap').classList.toggle('hidden', type!=='product');
+}
+function setBasis(basis){
+  document.getElementById('basisSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.v===basis));
+  document.getElementById('selfWrap').classList.toggle('hidden', basis!=='self');
+  document.getElementById('comboWrap').classList.toggle('hidden', basis!=='combo');
+}
+
+function renderBasketItems(items){
+  const wrap = document.getElementById('basketItemsList');
+  wrap.innerHTML = items.map((it,i)=>`
+    <div class="basketItemRow" data-basket-row="${i}">
+      <div class="biTop">
+        <select data-basket-type="${i}">
+          <option value="category"${it.type==='category'?' selected':''}>Categoria</option>
+          <option value="product"${it.type==='product'?' selected':''}>Produto (código)</option>
+        </select>
+        <button type="button" class="rmBasket" data-rm-basket="${i}" aria-label="Remover item">&times;</button>
+      </div>
+      <div class="biBottom">
+        ${it.type==='product'
+          ? `<input type="text" data-basket-prod="${i}" placeholder="código do produto" value="${escapeHtml(it.value||'')}">`
+          : `<select data-basket-cat="${i}">${DB.categories.map(c=>`<option value="${escapeHtml(c)}"${it.value===c?' selected':''}>${escapeHtml(c)}</option>`).join('')}</select>`
+        }
+        <span class="biQtyLbl">qtd. mín.</span>
+        <input type="number" min="1" step="1" value="${it.minQty||1}" data-basket-minqty="${i}">
+      </div>
+      ${it.type==='product' ? `<div class="biResolve" data-basket-resolve="${i}"></div>` : ''}
+    </div>
+  `).join('');
+
+  wrap.querySelectorAll('[data-rm-basket]').forEach(b=>b.addEventListener('click', ()=>{
+    const items = readBasketItemsFromForm();
+    items.splice(Number(b.dataset.rmBasket), 1);
+    renderBasketItems(items.length ? items : [{type:'category', value:DB.categories[0]||'', minQty:1}]);
+  }));
+  wrap.querySelectorAll('[data-basket-type]').forEach(sel=>sel.addEventListener('change', ()=>{
+    const items = readBasketItemsFromForm();
+    const i = Number(sel.dataset.basketType);
+    items[i] = { type: sel.value, value: sel.value==='category' ? (DB.categories[0]||'') : '', minQty: items[i].minQty||1 };
+    renderBasketItems(items);
+  }));
+  wrap.querySelectorAll('[data-basket-prod]').forEach(inp=>{
+    const i = inp.dataset.basketProd;
+    const msgEl = wrap.querySelector(`[data-basket-resolve="${i}"]`);
+    inp.addEventListener('input', ()=>resolveProductCodeDisplay(inp.value, msgEl));
+    resolveProductCodeDisplay(inp.value, msgEl);
+  });
+}
+function readBasketItemsFromForm(){
+  const wrap = document.getElementById('basketItemsList');
+  const rows = [...wrap.querySelectorAll('[data-basket-row]')];
+  return rows.map(row=>{
+    const i = row.dataset.basketRow;
+    const type = wrap.querySelector(`[data-basket-type="${i}"]`).value;
+    const value = type === 'product'
+      ? (wrap.querySelector(`[data-basket-prod="${i}"]`)?.value || '').trim()
+      : (wrap.querySelector(`[data-basket-cat="${i}"]`)?.value || '');
+    const minQty = parseInt(wrap.querySelector(`[data-basket-minqty="${i}"]`).value, 10) || 1;
+    return { type, value, minQty };
+  });
 }
 
 function openPromoRuleForm(ruleId){
   promoEditingId = ruleId || null;
   const rule = ruleId ? state.promoRules.find(r=>r.id===ruleId) : null;
   populateCategorySelects();
+
   document.getElementById('promoModalTitle').textContent = rule ? 'Editar regra de campanha' : 'Nova regra de campanha';
   document.getElementById('promoName').value = rule ? rule.name : '';
-  document.getElementById('promoTargetCat').value = rule ? rule.targetCategory : (DB.categories[0]||'');
-  document.getElementById('promoBasis').value = rule ? rule.basis : 'qty';
-  document.getElementById('promoConditionCat').value = rule && rule.conditionCategory ? rule.conditionCategory : (DB.categories[0]||'');
-  document.getElementById('promoStacks').checked = rule ? rule.stacks !== false : true;
-  document.getElementById('promoComboWrap').classList.toggle('hidden', !(rule && rule.basis && rule.basis.startsWith('combo')));
+
+  const targetType = rule ? rule.targetType : 'category';
+  setTargetType(targetType);
+  if(targetType === 'category'){
+    document.getElementById('promoTargetCat').value = rule ? rule.targetValue : (DB.categories[0]||'');
+  } else {
+    document.getElementById('promoTargetProd').value = rule ? rule.targetValue : '';
+    resolveProductCodeDisplay(rule ? rule.targetValue : '', document.getElementById('targetProdResolve'));
+  }
+
+  const basis = rule ? rule.basis : 'self';
+  setBasis(basis);
+  document.getElementById('promoSelfMetric').value = rule ? (rule.selfMetric||'qty') : 'qty';
   renderTierRows(rule && rule.tiers && rule.tiers.length ? rule.tiers : [{min:0,pct:0}]);
+  renderBasketItems(rule && rule.basketItems && rule.basketItems.length ? rule.basketItems : [{type:'category', value:DB.categories[0]||'', minQty:1}]);
+  document.getElementById('promoComboPct').value = rule ? (rule.comboPct||'') : '';
+
+  document.getElementById('promoStacks').checked = rule ? rule.stacks !== false : true;
   document.getElementById('promoFormMsg').innerHTML = '';
   document.getElementById('promoRuleModal').classList.remove('hidden');
 }
@@ -2432,26 +2580,43 @@ function closePromoRuleForm(){
 
 function savePromoRuleFromForm(){
   const name = document.getElementById('promoName').value.trim();
-  const targetCategory = document.getElementById('promoTargetCat').value;
-  const basis = document.getElementById('promoBasis').value;
-  const conditionCategory = document.getElementById('promoConditionCat').value;
+  const targetType = document.getElementById('targetTypeSeg').querySelector('button.active').dataset.v;
+  const targetValue = targetType === 'category'
+    ? document.getElementById('promoTargetCat').value
+    : document.getElementById('promoTargetProd').value.trim();
+  const basis = document.getElementById('basisSeg').querySelector('button.active').dataset.v;
   const stacks = document.getElementById('promoStacks').checked;
-  const tiers = readTiersFromForm().filter(t=>t.min>0 && t.pct>0).sort((a,b)=>a.min-b.min);
-
   const msg = document.getElementById('promoFormMsg');
+
   if(!name){ msg.innerHTML = '<div class="ap-msg error">Dê um nome pra essa regra.</div>'; return; }
-  if(basis.startsWith('combo') && conditionCategory === targetCategory){
-    msg.innerHTML = '<div class="ap-msg error">A categoria complementar precisa ser diferente da categoria que recebe o desconto.</div>';
+  if(!targetValue){ msg.innerHTML = '<div class="ap-msg error">Informe a categoria ou o código do produto que recebe o desconto.</div>'; return; }
+  if(targetType === 'product' && !productByCod(targetValue)){
+    msg.innerHTML = '<div class="ap-msg error">Código de produto não encontrado — confira o código.</div>';
     return;
   }
-  if(tiers.length === 0){ msg.innerHTML = '<div class="ap-msg error">Adicione ao menos um degrau válido (mínimo e % maiores que zero).</div>'; return; }
 
-  const rule = {
-    id: promoEditingId || ('r' + Date.now()),
-    name, active: true, targetCategory, basis,
-    conditionCategory: basis.startsWith('combo') ? conditionCategory : null,
-    tiers, stacks,
-  };
+  const rule = { id: promoEditingId || ('r'+Date.now()), name, active:true, targetType, targetValue, basis, stacks };
+
+  if(basis === 'self'){
+    rule.selfMetric = document.getElementById('promoSelfMetric').value;
+    rule.tiers = readTiersFromForm().filter(t=>t.min>0 && t.pct>0).sort((a,b)=>a.min-b.min);
+    if(rule.tiers.length === 0){ msg.innerHTML = '<div class="ap-msg error">Adicione ao menos um degrau válido (mínimo e % maiores que zero).</div>'; return; }
+  } else {
+    const items = readBasketItemsFromForm();
+    for(const it of items){
+      if(!it.value){ msg.innerHTML = '<div class="ap-msg error">Preencha todos os itens da cesta.</div>'; return; }
+      if(it.type === 'product' && !productByCod(it.value)){
+        msg.innerHTML = `<div class="ap-msg error">Código "${escapeHtml(it.value)}" da cesta não foi encontrado.</div>`;
+        return;
+      }
+    }
+    if(items.length === 0){ msg.innerHTML = '<div class="ap-msg error">Adicione ao menos um item à cesta.</div>'; return; }
+    const comboPct = parseFloat(document.getElementById('promoComboPct').value) || 0;
+    if(comboPct <= 0){ msg.innerHTML = '<div class="ap-msg error">Informe o desconto (%) para quando a cesta estiver completa.</div>'; return; }
+    rule.basketItems = items;
+    rule.comboPct = comboPct;
+  }
+
   if(promoEditingId){
     const idx = state.promoRules.findIndex(r=>r.id===promoEditingId);
     if(idx>=0){ rule.active = state.promoRules[idx].active; state.promoRules[idx] = rule; }
@@ -2507,8 +2672,19 @@ function initPromoRulesAdmin(){
     tiers.push({min:0, pct:0});
     renderTierRows(tiers);
   });
-  document.getElementById('promoBasis').addEventListener('change', (e)=>{
-    document.getElementById('promoComboWrap').classList.toggle('hidden', !e.target.value.startsWith('combo'));
+  document.getElementById('addBasketItemBtn').addEventListener('click', ()=>{
+    const items = readBasketItemsFromForm();
+    items.push({type:'category', value:DB.categories[0]||'', minQty:1});
+    renderBasketItems(items);
+  });
+  document.getElementById('targetTypeSeg').querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>setTargetType(b.dataset.v));
+  });
+  document.getElementById('basisSeg').querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>setBasis(b.dataset.v));
+  });
+  document.getElementById('promoTargetProd').addEventListener('input', (e)=>{
+    resolveProductCodeDisplay(e.target.value, document.getElementById('targetProdResolve'));
   });
   document.getElementById('exportPromoBtn').addEventListener('click', exportPromoRulesJSON);
   const fileInput = document.getElementById('promoFileInput');
