@@ -2238,8 +2238,18 @@ let scannerCodeReader = null;
 
 async function startScanning(deviceId){
   stopScannerTicker();
-  if(scannerControls){ try{ scannerControls.stop(); }catch(e){} scannerControls = null; }
   const videoEl = document.getElementById('scannerVideo');
+
+  // para o loop de decodificação E o stream de vídeo de verdade (liberando a câmera
+  // no nível do sistema) - só parar o "controls" do ZXing às vezes não é suficiente,
+  // e tentar abrir a câmera seguinte antes da anterior liberar causa erro.
+  if(scannerControls){ try{ scannerControls.stop(); }catch(e){} scannerControls = null; }
+  if(videoEl.srcObject){
+    try{ videoEl.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){}
+    videoEl.srcObject = null;
+  }
+  await new Promise(r=>setTimeout(r, 350)); // dá tempo do hardware da câmera liberar
+
   const videoConstraints = {
     width: { ideal: 1920 },
     height: { ideal: 1080 },
@@ -2307,6 +2317,8 @@ async function openBarcodeScanner(){
 
 async function switchScannerCamera(){
   if(scannerCameras.length < 2) return;
+  const btn = document.getElementById('scannerSwitchBtn');
+  btn.disabled = true;
   scannerCameraIndex = (scannerCameraIndex + 1) % scannerCameras.length;
   const dev = scannerCameras[scannerCameraIndex];
   showScannerStatus('Trocando câmera…');
@@ -2314,7 +2326,10 @@ async function switchScannerCamera(){
     await startScanning(dev.deviceId);
   }catch(e){
     console.error(e);
-    showScannerStatus('Não foi possível trocar de câmera.', true);
+    const detail = e && e.name ? ` (${e.name})` : '';
+    showScannerStatus('Não foi possível trocar de câmera' + detail + '. Toque em × e abra o leitor de novo.', true);
+  }finally{
+    btn.disabled = false;
   }
 }
 
@@ -2323,6 +2338,11 @@ function closeBarcodeScanner(){
   if(scannerControls){
     try{ scannerControls.stop(); }catch(e){}
     scannerControls = null;
+  }
+  const videoEl = document.getElementById('scannerVideo');
+  if(videoEl.srcObject){
+    try{ videoEl.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){}
+    videoEl.srcObject = null;
   }
   document.getElementById('scannerModal').classList.add('hidden');
   hideScannerStatus();
