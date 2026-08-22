@@ -469,6 +469,16 @@
   .seller-field label{display:block;font-size:12px;font-weight:600;color:var(--gray);margin-bottom:6px;}
   .btnrow{display:flex;flex-direction:column;gap:8px;}
   .secondaryRow{display:flex;gap:8px;}
+  .shareRow{display:flex;gap:8px;}
+  .shareOptBtn{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--red);color:var(--white);border:none;
+    padding:15px;font-weight:600;font-size:14.5px;border-radius:var(--r-sm);cursor:pointer;
+  }
+  .shareOptBtn svg{width:18px;height:18px;flex-shrink:0;}
+  .shareOptBtn:active{background:var(--red-deep);}
+  #shareTextBtn{background:var(--fill);color:var(--ink);}
+  #shareTextBtn:active{background:var(--hairline);}
   .exportBtn{
     width:100%;
     background:var(--red);
@@ -746,6 +756,12 @@
     box-shadow:var(--shadow-1);
   }
   .levitem.zero{box-shadow:0 0 0 1.5px #F3C6C6, var(--shadow-1);background:#FFFAFA;}
+  .levitem.done{opacity:.6;}
+  .levitem.done .pname{text-decoration:line-through;text-decoration-color:var(--gray);}
+  .donebadge{
+    display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:0;
+    color:#fff;background:#1E8E3E;padding:3px 8px;border-radius:20px;margin-bottom:6px;margin-left:5px;
+  }
   .levitem .top{display:flex;justify-content:space-between;gap:8px;}
   .levitem .pname{font-weight:600;font-size:15px;line-height:1.3;letter-spacing:-.01em;}
   .levitem .pcode{font-size:12.5px;color:var(--gray);margin-top:2px;}
@@ -1011,7 +1027,16 @@
           Exportar CSV
         </button>
       </div>
-      <button class="exportBtn" id="exportBtn">Gerar imagem para o cliente</button>
+      <div class="shareRow">
+        <button class="shareOptBtn" id="shareTextBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Texto
+        </button>
+        <button class="shareOptBtn" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Imagem
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -1025,7 +1050,7 @@
     <input type="text" id="csvClientName" placeholder="Ex: João Silva Materiais" autocomplete="off">
     <div class="minimodal-btnrow">
       <button id="csvNameCancel">Cancelar</button>
-      <button id="csvNameConfirm">Salvar CSV</button>
+      <button id="csvNameConfirm">Baixar CSV</button>
     </div>
   </div>
 </div>
@@ -1782,7 +1807,7 @@ function loadLevSurvey(){
       const arr = JSON.parse(raw);
       if(Array.isArray(arr)) return arr
         .filter(it => it && it.cod!==undefined && DB.productIndex[it.cod])
-        .map(it => ({cod: it.cod, qty: it.qty||0, ped: it.ped||0}));
+        .map(it => ({cod: it.cod, qty: it.qty||0, ped: it.ped||0, done: !!it.done}));
     }
   }catch(e){ console.warn('Não foi possível carregar o levantamento salvo:', e); }
   return [];
@@ -2019,7 +2044,7 @@ function doOpenSavedSurvey(id){
   const proceed = () => {
     state.survey = entry.items
       .filter(it => it && it.cod!==undefined && DB.productIndex[it.cod])
-      .map(it => ({cod: it.cod, qty: it.qty||0, ped: it.ped||0}));
+      .map(it => ({cod: it.cod, qty: it.qty||0, ped: it.ped||0, done: !!it.done}));
     state.levLoadedId = entry.id;
     state.levLoadedName = entry.name;
     saveLevSurvey();
@@ -2055,13 +2080,14 @@ function addLevPedidoToCart(cod){
   addToCart(cod, it.ped);
   showToast(`${p ? p.n + ' — ' : ''}${it.ped} un. adicionadas ao orçamento`);
   it.ped = 0;
+  it.done = true;
   saveLevSurvey();
   renderLevList();
 }
 function addAllLevToCart(){
   const toAdd = state.survey.filter(it => it.ped > 0);
   if(toAdd.length === 0){ showToast('Defina a quantidade de pedido nos itens primeiro'); return; }
-  for(const it of toAdd){ addToCart(it.cod, it.ped); it.ped = 0; }
+  for(const it of toAdd){ addToCart(it.cod, it.ped); it.ped = 0; it.done = true; }
   saveLevSurvey();
   renderLevList();
   showToast('Pedido adicionado ao orçamento');
@@ -2086,6 +2112,7 @@ function renderLevList(){
 
   const totalEstoque = state.survey.reduce((a,i)=>a+i.qty,0);
   const totalPedido = state.survey.reduce((a,i)=>a+(i.ped||0),0);
+  const totalDone = state.survey.filter(i=>i.done).length;
   const totalPedidoValor = state.survey.reduce((a,i)=>{
     const p = productByCod(i.cod);
     if(!p || !i.ped) return a;
@@ -2093,19 +2120,21 @@ function renderLevList(){
     return a + cp*i.ped;
   },0);
   summaryEl.innerHTML = `<b>${state.survey.length}</b> produto${state.survey.length===1?'':'s'} · <b>${totalEstoque}</b> un. em estoque` +
-    (totalPedido>0 ? ` · <b>${totalPedido}</b> un. no pedido · <b>${brl(totalPedidoValor)}</b>` : '');
+    (totalPedido>0 ? ` · <b>${totalPedido}</b> un. no pedido · <b>${brl(totalPedidoValor)}</b>` : '') +
+    (totalDone>0 ? ` · <b>${totalDone}</b> já no orçamento` : '');
 
-  // mais recém-mexido primeiro seria ideal, mas manter ordem de inclusão é previsível o suficiente
-  listEl.innerHTML = state.survey.map(it=>{
+  // itens já adicionados ao orçamento vão pro final da lista, como um "feito"
+  const ordered = [...state.survey].sort((a,b)=> (a.done?1:0) - (b.done?1:0));
+  listEl.innerHTML = ordered.map(it=>{
     const p = productByCod(it.cod);
     if(!p) return '';
     const qtyDisc = qtyDiscountFor(p.c);
     const cp = clientPrice(listPrice(p, state.uf), state.channelDiscount, state.promoDiscount, p.fx===1, qtyDisc);
     const edited = isPriceEdited(p.c);
-    return `<div class="levitem ${it.qty===0?'zero':''}">
+    return `<div class="levitem ${it.qty===0?'zero':''}${it.done?' done':''}">
       <div class="top">
         <div>
-          <div class="pname">${escapeHtml(p.n)}${p.fx ? ' <span class="fixedbadge">Preço fixo</span>' : ''}${edited ? ' <span class="editedbadge">Preço editado</span>' : ''}${qtyDisc>0 ? ` <span class="editedbadge">-${qtyDisc}%</span>` : ''}</div>
+          <div class="pname">${escapeHtml(p.n)}${p.fx ? ' <span class="fixedbadge">Preço fixo</span>' : ''}${edited ? ' <span class="editedbadge">Preço editado</span>' : ''}${qtyDisc>0 ? ` <span class="editedbadge">-${qtyDisc}%</span>` : ''}${it.done ? ' <span class="donebadge">✓ no orçamento</span>' : ''}</div>
           <div class="pcode">Cód. ${p.c}${p.e ? ' · EAN '+p.e : ''}</div>
         </div>
         <button class="rm" data-lev-rm="${p.c}" aria-label="Remover">&times;</button>
@@ -2299,11 +2328,11 @@ async function generateQuoteImage(){
 // Compartilha um arquivo (se o navegador suportar) ou baixa como fallback.
 async function shareOrDownloadBlob(blob, fileName, shareTitle, successMsg){
   const file = new File([blob], fileName, {type: blob.type});
-  if(navigator.canShare && navigator.canShare({files:[file]})){
+  if(navigator.share){
     try{
       await navigator.share({files:[file], title: shareTitle});
       return;
-    }catch(e){ /* usuário cancelou ou não suportado: cai para o download */ }
+    }catch(e){ /* usuário cancelou, ou o navegador recusou esse tipo de arquivo: cai para o download */ }
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2338,7 +2367,47 @@ function exportCartCSV(clientName){
   const blob = new Blob([BOM + csvBody], {type:'text/csv;charset=utf-8;'});
   const namePart = sanitizeFileNamePart(clientName);
   const fileName = `orcamento-${namePart ? namePart+'-' : ''}${todayStr()}.csv`;
-  shareOrDownloadBlob(blob, fileName, 'Orçamento Cortag (CSV)', 'CSV salvo/baixado');
+  shareOrDownloadBlob(blob, fileName, 'Orçamento Cortag (CSV)', 'Baixado — verifique a pasta Downloads do celular');
+}
+
+// Texto simples (não é arquivo) - compartilhamento de texto funciona de forma muito
+// mais confiável entre aparelhos/apps do que compartilhar um arquivo CSV, que em
+// muitos Android/Chrome nem aparece como opção.
+function buildCartShareText(clientName){
+  const {rows, total} = cartTotals();
+  const st = STATE_BY_UF[state.uf];
+  const linhas = rows.map(({p,it,cp,lineTotal})=>
+    `• ${p.n} (Cód. ${p.c})\n  ${it.qty} un. x ${brl(cp)} = ${brl(lineTotal)}`
+  );
+  const partes = [
+    `*Orçamento Cortag*${clientName ? ' — '+clientName : ''}`,
+    `${st.uf} — ${st.name} · ${new Date().toLocaleDateString('pt-BR')}`,
+    '',
+    ...linhas,
+    '',
+    `*Total: ${brl(total)}*`,
+  ];
+  return partes.join('\n');
+}
+async function shareCartAsText(){
+  const {rows} = cartTotals();
+  if(rows.length === 0){ showToast('Adicione itens ao orçamento primeiro'); return; }
+  let clientName = '';
+  try{ clientName = localStorage.getItem(CSV_NAME_LS_KEY) || ''; }catch(e){}
+  const text = buildCartShareText(clientName);
+  if(navigator.share){
+    try{
+      await navigator.share({text, title:'Orçamento Cortag'});
+      return;
+    }catch(e){ /* usuário cancelou - ok, não faz nada */ return; }
+  }
+  // sem Web Share (navegador antigo/desktop): copia pra área de transferência
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('Copiado — cole no WhatsApp ou onde precisar');
+  }catch(e){
+    showToast('Não foi possível compartilhar nem copiar automaticamente.');
+  }
 }
 
 // ---------------- Modal: nome do cliente para o export CSV ----------------
@@ -3457,6 +3526,7 @@ async function init(){
   document.getElementById('overlay').addEventListener('click', closeDrawer);
   document.getElementById('clearCartBtn').addEventListener('click', clearCartWithConfirm);
   document.getElementById('exportBtn').addEventListener('click', generateQuoteImage);
+  document.getElementById('shareTextBtn').addEventListener('click', shareCartAsText);
   document.getElementById('csvExportBtn').addEventListener('click', openCsvNamePrompt);
 
   renderResults();
