@@ -468,6 +468,14 @@
   .seller-field{margin-bottom:12px;}
   .seller-field label{display:block;font-size:12px;font-weight:600;color:var(--gray);margin-bottom:6px;}
   .btnrow{display:flex;gap:8px;}
+  .finalizeBtn{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:#1E8E3E;color:#fff;border:none;
+    padding:15px;font-weight:700;font-size:15px;border-radius:var(--r-sm);cursor:pointer;
+    margin-bottom:8px;
+  }
+  .finalizeBtn svg{width:18px;height:18px;flex-shrink:0;}
+  .finalizeBtn:active{background:#166B2E;}
   .shareOptBtn{
     flex:2;display:flex;align-items:center;justify-content:center;gap:8px;
     background:var(--red);color:var(--white);border:none;
@@ -599,6 +607,33 @@
     width:24px;height:24px;display:flex;align-items:center;justify-content:center;
   }
   .promoEmpty{font-size:13px;color:var(--gray);padding:8px 0;}
+  .clientPickerItem{
+    display:block;width:100%;text-align:left;background:var(--fill);border:none;border-radius:12px;
+    padding:11px 13px;margin-bottom:8px;cursor:pointer;
+  }
+  .clientPickerItem .cpName{font-weight:700;font-size:13.5px;color:var(--ink);}
+  .clientPickerItem .cpMeta{font-size:12px;color:var(--gray);margin-top:2px;}
+  .clientPickerItem:active{background:var(--hairline);}
+  .hist-clientBar{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:14px 16px;
+  }
+  .hist-clientLabel{font-size:11.5px;color:var(--gray);font-weight:600;}
+  .hist-clientName{font-size:15px;font-weight:700;color:var(--ink);margin-top:2px;}
+  .hist-content{padding:0 16px 16px;}
+  .histCard{
+    background:var(--white);border-radius:16px;box-shadow:var(--shadow-1);
+    padding:13px 14px;margin-bottom:9px;
+  }
+  .histCard .hcName{font-weight:700;font-size:13.5px;color:var(--ink);}
+  .histCard .hcCode{font-size:11.5px;color:var(--gray);margin-top:1px;}
+  .histCard .hcStats{display:flex;flex-wrap:wrap;gap:12px;margin-top:9px;}
+  .histCard .hcStat{font-size:11.5px;color:var(--gray);}
+  .histCard .hcStat b{display:block;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .histCard .hcRotBadge{
+    display:inline-block;background:#FFF4E5;color:#B36B00;font-weight:700;font-size:11px;
+    padding:3px 9px;border-radius:20px;margin-top:8px;
+  }
   .prodResolveMsg{font-size:12px;margin:0 0 14px;min-height:16px;}
   .prodResolveMsg.ok{color:#1E8E3E;}
   .prodResolveMsg.err{color:#B3261E;}
@@ -724,13 +759,13 @@
   }
   .lev-saveinfo{font-size:12.5px;color:var(--gray);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
   .lev-saveinfo.hasname{color:var(--ink);font-weight:600;}
-  .lev-savebtns{display:flex;gap:6px;flex-shrink:0;}
+  .lev-savebtns{display:flex;gap:5px;flex-shrink:0;}
   .lev-savebtns button{
-    display:flex;align-items:center;gap:5px;
+    display:flex;align-items:center;gap:4px;
     background:var(--white);box-shadow:var(--shadow-1);border:none;border-radius:20px;
-    padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;
+    padding:7px 10px;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer;
   }
-  .lev-savebtns button svg{width:14px;height:14px;flex-shrink:0;}
+  .lev-savebtns button svg{width:13px;height:13px;flex-shrink:0;}
   .savedSurveyItem{
     background:var(--fill);border-radius:12px;padding:12px 13px;margin-bottom:8px;
     display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;
@@ -919,6 +954,7 @@
   <div class="tabbar">
     <button type="button" class="tabbtn active" id="tabBtnPrecos" data-tab="precos">Preços</button>
     <button type="button" class="tabbtn" id="tabBtnLev" data-tab="levantamento">Levantamento</button>
+    <button type="button" class="tabbtn" id="tabBtnHist" data-tab="historico">Histórico</button>
   </div>
 
   <div id="tabPrecos">
@@ -991,6 +1027,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
           Abrir
         </button>
+        <button type="button" id="levSyncBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><path d="M12 9v4M12 6.5v.01"/></svg>
+          Enviar
+        </button>
       </div>
     </div>
     <div class="lev-inputWrap">
@@ -1019,6 +1059,24 @@
       <button class="exportBtn" id="levAddAllBtn">Adicionar todos ao orçamento</button>
     </div>
   </div>
+
+  <div id="tabHistorico" class="hidden">
+    <div class="hist-clientBar">
+      <div>
+        <div class="hist-clientLabel">Cliente</div>
+        <div class="hist-clientName" id="histClientName">Nenhum selecionado</div>
+      </div>
+      <button type="button" class="restoreBtn" id="histSelectClientBtn" style="width:auto;padding:10px 16px;">Selecionar</button>
+    </div>
+    <div class="segmented" id="histViewSeg" style="margin:0 16px 12px;">
+      <button type="button" data-v="historico" class="active">Histórico</button>
+      <button type="button" data-v="rotatividade">Rotatividade</button>
+      <button type="button" data-v="visitas">Visitas</button>
+    </div>
+    <div class="hist-content" id="histContent">
+      <div class="lev-empty">Selecione um cliente pra ver o histórico de compras dele.</div>
+    </div>
+  </div>
 </div>
 
 <button class="cartbar hidden" id="cartBar">
@@ -1038,6 +1096,10 @@
       <span class="lbl">Total</span>
       <span class="val" id="cartTotal">R$ 0,00</span>
     </div>
+    <button type="button" class="finalizeBtn" id="finalizeOrderBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      Finalizar pedido
+    </button>
     <div class="btnrow">
       <button class="clearBtn" id="clearCartBtn">Limpar</button>
       <button class="shareOptBtn" id="openShareSheetBtn">
@@ -1049,6 +1111,29 @@
 </div>
 
 <div class="overlay hidden" id="shareSheetOverlay"></div>
+<div class="overlay hidden" id="clientPickerOverlay"></div>
+<div class="minimodal hidden" id="clientPickerModal">
+  <div class="minimodal-card" style="max-height:82vh;overflow-y:auto;">
+    <h3>Selecionar cliente</h3>
+    <input type="text" id="clientPickerSearch" placeholder="Buscar por nome ou CNPJ/CPF..." autocomplete="off">
+    <div id="clientPickerResults"></div>
+    <button type="button" class="priceEditResetLink" id="clientPickerNewToggle" style="text-decoration:none;color:var(--red);font-weight:700;margin:6px 0 14px;">+ cadastrar cliente novo</button>
+    <div id="clientPickerNewForm" class="hidden">
+      <label for="clientPickerNewNome">Nome</label>
+      <input type="text" id="clientPickerNewNome" placeholder="Nome do cliente">
+      <label for="clientPickerNewDoc">CNPJ/CPF (opcional)</label>
+      <input type="text" id="clientPickerNewDoc" placeholder="Só números">
+      <label for="clientPickerNewContato">Contato (opcional)</label>
+      <input type="text" id="clientPickerNewContato" placeholder="Telefone/e-mail">
+      <button type="button" id="clientPickerNewConfirm" style="width:100%;background:var(--red);color:#fff;border:none;border-radius:var(--r-sm);padding:12px;font-weight:700;margin-bottom:14px;">Criar e selecionar</button>
+    </div>
+    <div id="clientPickerMsg"></div>
+    <div class="minimodal-btnrow">
+      <button id="clientPickerCancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="shareSheet hidden" id="shareSheet">
   <div class="shareSheet-handle"></div>
   <h3>Como você quer enviar?</h3>
@@ -1189,6 +1274,22 @@
       </div>
       <input type="file" id="promoFileInput" accept=".json,application/json" style="display:none;">
       <p class="ap-hint" style="margin-top:10px;">Pra atualizar a campanha de todo mundo de uma vez: exporte aqui, e substitua o arquivo <code>promocoes.json</code> no mesmo lugar onde está o <code>precos.json</code>.</p>
+    </div>
+    <div class="ap-card">
+      <h3>Histórico de clientes (servidor)</h3>
+      <div class="ap-status-row"><span class="k">Status</span><span class="v" id="apBackendStatus">—</span></div>
+      <p class="ap-hint" style="margin:10px 0;">Liga o app ao servidor que guarda pedidos, levantamentos e histórico de compra por cliente. Sincronize o catálogo sempre que os preços forem atualizados, senão pedidos com produtos novos não gravam.</p>
+      <button class="restoreBtn" id="testBackendBtn" style="margin-bottom:10px;">Testar conexão</button>
+      <button class="fileBtn" id="syncProdutosBtn">Sincronizar catálogo de produtos</button>
+      <div id="syncProdutosMsg" style="margin-top:8px;"></div>
+      <button type="button" class="priceEditResetLink" id="toggleApiConfigBtn" style="text-decoration:none;color:var(--gray);font-weight:600;font-size:12px;margin-top:14px;">Configuração avançada (URL/chave)</button>
+      <div id="apiConfigWrap" class="hidden" style="margin-top:10px;">
+        <label for="apiBaseUrlInput">Endereço do servidor</label>
+        <input type="text" id="apiBaseUrlInput" placeholder="https://cortag-backend.onrender.com">
+        <label for="apiKeyInput">Chave de API</label>
+        <input type="text" id="apiKeyInput" placeholder="chave secreta">
+        <button class="restoreBtn" id="saveApiConfigBtn">Salvar configuração</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2028,6 +2129,35 @@ function confirmLevSave(){
   showToast('Levantamento salvo: ' + name);
 }
 
+// Envia o levantamento atual pro servidor, ligado a um cliente de verdade -
+// separado do "Salvar" local (que continua funcionando sem internet). Só
+// depois de escolher/criar o cliente é que os dados saem do aparelho.
+async function syncLevToBackend(){
+  if(state.survey.length === 0){ showToast('Adicione algum item ao levantamento antes de enviar'); return; }
+  const cliente = await openClientPicker();
+  if(!cliente) return;
+
+  const btn = document.getElementById('levSyncBtn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+  try{
+    const payload = {
+      cliente: { cliente_id: cliente.id, nome: cliente.nome },
+      vendedor_nome: state.seller || undefined,
+      nome_levantamento: state.levLoadedName || undefined,
+      itens: state.survey.map(it => ({ codigo_sku: it.cod, quantidade_contada: it.qty })),
+    };
+    await apiCriarLevantamento(payload);
+    showToast(`Levantamento enviado pro histórico de ${cliente.nome}`);
+  }catch(e){
+    alert('Não foi possível enviar o levantamento: ' + e.message + '\n\nSe for produto não encontrado, sincronize o catálogo no Painel Administrativo primeiro.');
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
 function openLevOpenModal(){
   renderSavedSurveysList();
   document.getElementById('levOpenOverlay').classList.remove('hidden');
@@ -2104,6 +2234,7 @@ function initLevSaveOpen(){
     if(e.key === 'Enter'){ e.preventDefault(); confirmLevSave(); }
   });
   document.getElementById('levOpenBtn').addEventListener('click', openLevOpenModal);
+  document.getElementById('levSyncBtn').addEventListener('click', syncLevToBackend);
   document.getElementById('levOpenCancel').addEventListener('click', closeLevOpenModal);
   document.getElementById('levOpenOverlay').addEventListener('click', closeLevOpenModal);
   refreshLevSaveInfo();
@@ -2260,23 +2391,27 @@ function initLevantamento(){
 }
 
 function initTabs(){
-  const btnPrecos = document.getElementById('tabBtnPrecos');
-  const btnLev = document.getElementById('tabBtnLev');
-  const panelPrecos = document.getElementById('tabPrecos');
-  const panelLev = document.getElementById('tabLevantamento');
+  const buttons = {
+    precos: document.getElementById('tabBtnPrecos'),
+    levantamento: document.getElementById('tabBtnLev'),
+    historico: document.getElementById('tabBtnHist'),
+  };
+  const panels = {
+    precos: document.getElementById('tabPrecos'),
+    levantamento: document.getElementById('tabLevantamento'),
+    historico: document.getElementById('tabHistorico'),
+  };
   function activate(tab){
-    const isPrecos = tab === 'precos';
-    btnPrecos.classList.toggle('active', isPrecos);
-    btnLev.classList.toggle('active', !isPrecos);
-    panelPrecos.classList.toggle('hidden', !isPrecos);
-    panelLev.classList.toggle('hidden', isPrecos);
-    if(!isPrecos){
+    Object.keys(buttons).forEach(k=>{
+      buttons[k].classList.toggle('active', k===tab);
+      panels[k].classList.toggle('hidden', k!==tab);
+    });
+    if(tab === 'levantamento'){
       renderLevList();
       setTimeout(()=>document.getElementById('levInput').focus(), 50);
     }
   }
-  btnPrecos.addEventListener('click', ()=>activate('precos'));
-  btnLev.addEventListener('click', ()=>activate('levantamento'));
+  Object.keys(buttons).forEach(k=>buttons[k].addEventListener('click', ()=>activate(k)));
 }
 
 // ---------------- Drawer open/close ----------------
@@ -2624,6 +2759,305 @@ const LS_KEY = 'cortagPriceDB_v1';
 let ACTIVE_SOURCE = 'Base original do app';
 let PROMO_SOURCE = 'Nenhuma campanha ativa';
 const PROMO_LS_KEY = 'cortagPromoRules_v1';
+
+// =================================================================
+// ---------------- Backend: histórico de clientes/pedidos --------
+// =================================================================
+// Liga o app ao serviço criado no Render. A chave pode ser trocada pelo
+// Painel Administrativo (ex: se a chave for rotacionada por segurança), sem
+// precisar reenviar o app inteiro.
+const API_CONFIG_LS_KEY = 'cortagApiConfig_v1';
+const API_BASE_URL_DEFAULT = 'https://cortag-backend.onrender.com';
+const API_KEY_DEFAULT = 'Lk2735uufzNkvEd7eUIVzaUZRof-tDBD12jlnmFgu1o';
+
+function getApiConfig(){
+  let baseUrl = API_BASE_URL_DEFAULT, apiKey = API_KEY_DEFAULT;
+  try{
+    const saved = JSON.parse(localStorage.getItem(API_CONFIG_LS_KEY) || '{}');
+    if(saved.baseUrl) baseUrl = saved.baseUrl;
+    if(saved.apiKey) apiKey = saved.apiKey;
+  }catch(e){}
+  return { baseUrl, apiKey };
+}
+function saveApiConfig(baseUrl, apiKey){
+  try{ localStorage.setItem(API_CONFIG_LS_KEY, JSON.stringify({baseUrl, apiKey})); }catch(e){}
+}
+
+async function apiFetch(path, options={}){
+  const { baseUrl, apiKey } = getApiConfig();
+  let resp;
+  try{
+    resp = await fetch(baseUrl + path, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey, ...(options.headers||{}) },
+    });
+  }catch(e){
+    throw new Error('Não foi possível conectar ao servidor de histórico (sem internet, ou o serviço está fora do ar).');
+  }
+  let body = null;
+  try{ body = await resp.json(); }catch(e){}
+  if(!resp.ok){
+    throw new Error((body && body.erro) || `Erro no servidor (${resp.status}).`);
+  }
+  return body;
+}
+
+async function apiBuscarClientes(busca){
+  return apiFetch('/api/clientes?busca=' + encodeURIComponent(busca||''));
+}
+async function apiCriarCliente(cliente){
+  return apiFetch('/api/clientes', { method:'POST', body: JSON.stringify(cliente) });
+}
+async function apiSyncProdutos(produtos){
+  return apiFetch('/api/produtos/sync', { method:'POST', body: JSON.stringify({produtos}) });
+}
+async function apiCriarPedido(payload){
+  return apiFetch('/api/pedidos', { method:'POST', body: JSON.stringify(payload) });
+}
+async function apiCriarLevantamento(payload){
+  return apiFetch('/api/levantamentos', { method:'POST', body: JSON.stringify(payload) });
+}
+async function apiHistoricoCliente(clienteId){
+  return apiFetch(`/api/clientes/${clienteId}/historico`);
+}
+async function apiRotatividadeCliente(clienteId){
+  return apiFetch(`/api/clientes/${clienteId}/rotatividade`);
+}
+async function apiLevantamentosCliente(clienteId){
+  return apiFetch(`/api/clientes/${clienteId}/levantamentos`);
+}
+
+// ---------------- Seletor de cliente (reutilizado em vários lugares) ----------------
+// Retorna uma Promise que resolve com {id, nome} quando o usuário escolhe ou cria
+// um cliente, ou null se cancelar. Uso: const cliente = await openClientPicker();
+let clientPickerResolve = null;
+let clientPickerDebounce = null;
+
+function openClientPicker(){
+  return new Promise((resolve)=>{
+    clientPickerResolve = resolve;
+    document.getElementById('clientPickerSearch').value = '';
+    document.getElementById('clientPickerResults').innerHTML = '';
+    document.getElementById('clientPickerNewForm').classList.add('hidden');
+    document.getElementById('clientPickerNewNome').value = '';
+    document.getElementById('clientPickerNewDoc').value = '';
+    document.getElementById('clientPickerNewContato').value = '';
+    document.getElementById('clientPickerMsg').innerHTML = '';
+    document.getElementById('clientPickerOverlay').classList.remove('hidden');
+    document.getElementById('clientPickerModal').classList.remove('hidden');
+    setTimeout(()=>document.getElementById('clientPickerSearch').focus(), 50);
+  });
+}
+function closeClientPicker(result){
+  document.getElementById('clientPickerOverlay').classList.add('hidden');
+  document.getElementById('clientPickerModal').classList.add('hidden');
+  const resolve = clientPickerResolve;
+  clientPickerResolve = null;
+  if(resolve) resolve(result || null);
+}
+async function runClientSearch(term){
+  const results = document.getElementById('clientPickerResults');
+  if(!term || term.trim().length < 2){ results.innerHTML = ''; return; }
+  results.innerHTML = '<div class="promoEmpty">Buscando…</div>';
+  try{
+    const clientes = await apiBuscarClientes(term);
+    if(clientes.length === 0){ results.innerHTML = '<div class="promoEmpty">Nenhum cliente encontrado — pode cadastrar um novo abaixo.</div>'; return; }
+    results.innerHTML = clientes.map(c => `
+      <button type="button" class="clientPickerItem" data-client-id="${c.id}" data-client-nome="${escapeHtml(c.nome)}">
+        <div class="cpName">${escapeHtml(c.nome)}</div>
+        <div class="cpMeta">${c.documento ? escapeHtml(c.documento) : 'sem documento cadastrado'}${c.contato ? ' · '+escapeHtml(c.contato) : ''}</div>
+      </button>
+    `).join('');
+    results.querySelectorAll('[data-client-id]').forEach(btn=>{
+      btn.addEventListener('click', ()=> closeClientPicker({ id: Number(btn.dataset.clientId), nome: btn.dataset.clientNome }));
+    });
+  }catch(e){
+    results.innerHTML = `<div class="promoEmpty">${escapeHtml(e.message)}</div>`;
+  }
+}
+async function confirmNewClient(){
+  const nome = document.getElementById('clientPickerNewNome').value.trim();
+  const documento = document.getElementById('clientPickerNewDoc').value.trim();
+  const contato = document.getElementById('clientPickerNewContato').value.trim();
+  const msg = document.getElementById('clientPickerMsg');
+  if(!nome){ msg.innerHTML = '<div class="ap-msg error">Informe o nome do cliente.</div>'; return; }
+  try{
+    const cliente = await apiCriarCliente({ nome, documento: documento||undefined, contato: contato||undefined });
+    closeClientPicker({ id: cliente.id, nome: cliente.nome });
+  }catch(e){
+    msg.innerHTML = `<div class="ap-msg error">${escapeHtml(e.message)}</div>`;
+  }
+}
+function initClientPicker(){
+  document.getElementById('clientPickerSearch').addEventListener('input', (e)=>{
+    clearTimeout(clientPickerDebounce);
+    const term = e.target.value;
+    clientPickerDebounce = setTimeout(()=>runClientSearch(term), 300);
+  });
+  document.getElementById('clientPickerNewToggle').addEventListener('click', ()=>{
+    document.getElementById('clientPickerNewForm').classList.toggle('hidden');
+  });
+  document.getElementById('clientPickerNewConfirm').addEventListener('click', confirmNewClient);
+  document.getElementById('clientPickerCancel').addEventListener('click', ()=>closeClientPicker(null));
+  document.getElementById('clientPickerOverlay').addEventListener('click', ()=>closeClientPicker(null));
+}
+
+// ---------------- Admin: conexão com o backend de histórico ----------------
+async function testBackendConnection(){
+  const statusEl = document.getElementById('apBackendStatus');
+  statusEl.textContent = 'Testando…';
+  try{
+    await apiBuscarClientes('');
+    statusEl.textContent = '✓ Conectado';
+    statusEl.style.color = '#1E8E3E';
+  }catch(e){
+    statusEl.textContent = '✗ ' + e.message;
+    statusEl.style.color = '#B3261E';
+  }
+}
+async function syncProductCatalog(){
+  const msg = document.getElementById('syncProdutosMsg');
+  msg.innerHTML = '<div class="promoEmpty">Sincronizando ' + DB.products.length + ' produtos…</div>';
+  try{
+    const produtos = DB.products.map(p => ({
+      codigo_sku: p.c,
+      nome: p.n,
+      categoria: DB.categories[p.cat] || null,
+    }));
+    const result = await apiSyncProdutos(produtos);
+    msg.innerHTML = `<div class="ap-msg" style="color:#1E8E3E;">✓ ${result.criados} novo(s), ${result.atualizados} atualizado(s) de ${result.total} produtos.</div>`;
+  }catch(e){
+    msg.innerHTML = `<div class="ap-msg error">${escapeHtml(e.message)}</div>`;
+  }
+}
+function initBackendAdmin(){
+  document.getElementById('testBackendBtn').addEventListener('click', testBackendConnection);
+  document.getElementById('syncProdutosBtn').addEventListener('click', syncProductCatalog);
+  document.getElementById('toggleApiConfigBtn').addEventListener('click', ()=>{
+    const wrap = document.getElementById('apiConfigWrap');
+    const willShow = wrap.classList.contains('hidden');
+    wrap.classList.toggle('hidden');
+    if(willShow){
+      const { baseUrl, apiKey } = getApiConfig();
+      document.getElementById('apiBaseUrlInput').value = baseUrl;
+      document.getElementById('apiKeyInput').value = apiKey;
+    }
+  });
+  document.getElementById('saveApiConfigBtn').addEventListener('click', ()=>{
+    const baseUrl = document.getElementById('apiBaseUrlInput').value.trim().replace(/\/$/,'');
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    if(!baseUrl || !apiKey){ showToast('Preencha o endereço e a chave.'); return; }
+    saveApiConfig(baseUrl, apiKey);
+    showToast('Configuração salva');
+    testBackendConnection();
+  });
+}
+
+// ---------------- Finalizar pedido (grava no histórico do backend) ----------------
+async function finalizeOrder(){
+  const { rows } = cartTotals();
+  if(rows.length === 0){ showToast('Adicione itens ao orçamento primeiro'); return; }
+
+  const cliente = await openClientPicker();
+  if(!cliente) return; // cancelou a escolha do cliente
+
+  const btn = document.getElementById('finalizeOrderBtn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Gravando…';
+  try{
+    const payload = {
+      cliente: { cliente_id: cliente.id, nome: cliente.nome },
+      vendedor_nome: state.seller || undefined,
+      itens: rows.map(({p, it, cp}) => ({ codigo_sku: p.c, quantidade: it.qty, preco_unitario: Number(cp.toFixed(2)) })),
+    };
+    const result = await apiCriarPedido(payload);
+    showToast(`Pedido registrado no histórico de ${cliente.nome}`);
+  }catch(e){
+    alert('Não foi possível gravar o pedido: ' + e.message + '\n\nSe for produto não encontrado, sincronize o catálogo no Painel Administrativo primeiro.');
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+// ---------------- Aba Histórico (dados vêm do backend) ----------------
+let histSelectedClient = null;
+let histActiveView = 'historico';
+
+function formatDateBr(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleDateString('pt-BR');
+}
+function renderHistProdutoCard(item, showRotation){
+  const total = item.total_acumulado ?? item.total_comprado ?? 0;
+  return `<div class="histCard">
+    <div class="hcName">${escapeHtml(item.produto)}</div>
+    <div class="hcCode">Cód. ${escapeHtml(String(item.codigo_sku))}</div>
+    <div class="hcStats">
+      <div class="hcStat">1ª compra<b>${formatDateBr(item.primeira_compra)}</b></div>
+      <div class="hcStat">Última<b>${formatDateBr(item.ultima_compra)}</b></div>
+      <div class="hcStat">Pedidos<b>${item.num_pedidos}</b></div>
+      <div class="hcStat">Total un.<b>${total}</b></div>
+    </div>
+    ${showRotation && item.media_dias_entre_pedidos ? `<div class="hcRotBadge">repõe a cada ~${item.media_dias_entre_pedidos} dias</div>` : ''}
+  </div>`;
+}
+function renderHistVisitaCard(v){
+  return `<div class="histCard">
+    <div class="hcName">${escapeHtml(v.nome || 'Levantamento sem nome')}</div>
+    <div class="hcCode">${formatDateBr(v.data_visita)}${v.vendedor ? ' · '+escapeHtml(v.vendedor) : ''}</div>
+    <div class="hcStats">
+      <div class="hcStat">Produtos<b>${v.num_produtos}</b></div>
+      <div class="hcStat">Unidades<b>${v.total_unidades||0}</b></div>
+    </div>
+  </div>`;
+}
+async function loadHistView(){
+  const content = document.getElementById('histContent');
+  if(!histSelectedClient){
+    content.innerHTML = '<div class="lev-empty">Selecione um cliente pra ver o histórico de compras dele.</div>';
+    return;
+  }
+  content.innerHTML = '<div class="lev-empty">Carregando…</div>';
+  try{
+    if(histActiveView === 'historico'){
+      const rows = await apiHistoricoCliente(histSelectedClient.id);
+      content.innerHTML = rows.length
+        ? rows.map(r=>renderHistProdutoCard(r, false)).join('')
+        : '<div class="lev-empty">Esse cliente ainda não tem nenhum pedido registrado.</div>';
+    } else if(histActiveView === 'rotatividade'){
+      const rows = await apiRotatividadeCliente(histSelectedClient.id);
+      content.innerHTML = rows.length
+        ? rows.map(r=>renderHistProdutoCard(r, true)).join('')
+        : '<div class="lev-empty">Esse cliente ainda não tem nenhum pedido registrado.</div>';
+    } else if(histActiveView === 'visitas'){
+      const rows = await apiLevantamentosCliente(histSelectedClient.id);
+      content.innerHTML = rows.length
+        ? rows.map(renderHistVisitaCard).join('')
+        : '<div class="lev-empty">Nenhum levantamento registrado ainda pra esse cliente.</div>';
+    }
+  }catch(e){
+    content.innerHTML = `<div class="lev-empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+async function selectHistClient(){
+  const cliente = await openClientPicker();
+  if(!cliente) return;
+  histSelectedClient = cliente;
+  document.getElementById('histClientName').textContent = cliente.nome;
+  loadHistView();
+}
+function initHistTab(){
+  document.getElementById('histSelectClientBtn').addEventListener('click', selectHistClient);
+  document.getElementById('histViewSeg').querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.getElementById('histViewSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('active', x===b));
+      histActiveView = b.dataset.v;
+      loadHistView();
+    });
+  });
+}
 
 function splitMdRow(line){
   let s = line.trim();
@@ -3700,6 +4134,10 @@ async function init(){
   document.getElementById('overlay').addEventListener('click', closeDrawer);
   document.getElementById('clearCartBtn').addEventListener('click', clearCartWithConfirm);
   initShareSheet();
+  initClientPicker();
+  initBackendAdmin();
+  document.getElementById('finalizeOrderBtn').addEventListener('click', finalizeOrder);
+  initHistTab();
 
   renderResults();
   renderCartBar();
